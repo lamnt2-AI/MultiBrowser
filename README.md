@@ -1,6 +1,6 @@
 # Multi-Account Grid Browser (Trình duyệt đa tài khoản Google, YouTube & TikTok Multi-Tab)
 
-Ứng dụng Windows C# WPF sử dụng **Microsoft Edge WebView2**, kế thừa và hoàn thiện từ các giải pháp kiến trúc của các repository mã nguồn mở hàng đầu trên GitHub (`light-browser`, `splitbrowser`, `Prism-Browser`). Cho phép chia màn hình thành 1 đến 4 ô trình duyệt độc lập hoàn toàn, hỗ trợ đăng nhập nhiều tài khoản Google cùng lúc mà không bị trùng session hay bị Google chặn, tích hợp hệ thống **Dual-Tab (Mỗi ô 2 Tab YouTube + TikTok)**, thanh công cụ tự động hóa lướt/thả tym YouTube Shorts và **tính năng Mute toàn bộ âm thanh ứng dụng**.
+Ứng dụng Windows C# WPF sử dụng **Microsoft Edge WebView2**, kế thừa và hoàn thiện từ các giải pháp kiến trúc của các repository mã nguồn mở hàng đầu trên GitHub (`light-browser`, `splitbrowser`, `Prism-Browser`). Cho phép chia màn hình linh hoạt từ **1, 2, 4, 6 đến 8 ô trình duyệt độc lập hoàn toàn**, hỗ trợ đăng nhập nhiều tài khoản Google cùng lúc mà không bị trùng session hay bị Google chặn, tích hợp hệ thống **Dual-Tab (Mỗi ô 2 Tab YouTube + TikTok)**, thanh công cụ tự động hóa lướt/thả tym YouTube Shorts và **tính năng Mute toàn bộ âm thanh ứng dụng**.
 
 ---
 
@@ -14,11 +14,26 @@
 
 ---
 
+## ⚙️ Cài đặt số lượng cửa sổ (2, 4, 6, 8 Cửa Sổ) & Thông số mặc định
+
+* Nhấn nút **`⚙️ Cài đặt`** trên thanh công cụ góc trên bên phải để mở hộp thoại cài đặt:
+  * **Chọn số lượng cửa sổ:**
+    * **2 Cửa Sổ:** Bố cục 1 hàng x 2 cột (1x2).
+    * **4 Cửa Sổ:** Bố cục 2 hàng x 2 cột (2x2) [Mặc định].
+    * **6 Cửa Sổ:** Bố cục 2 hàng x 3 cột (2x3).
+    * **8 Cửa Sổ:** Bố cục 2 hàng x 4 cột (2x4 - Tối đa 16 tab song song).
+  * **Tùy chỉnh URL mục tiêu:** Cài đặt kênh YouTube Shorts và trang web TikTok mặc định khi khởi động.
+  * **Thông số Auto Shorts:** Tùy chỉnh số giây xem video mặc định và bật/tắt tự động thả tym.
+* Cấu hình được tự động lưu vào file **`settings.json`** và áp dụng ngay lập tức mà không cần khởi động lại ứng dụng.
+* Bạn cũng có thể chuyển nhanh số lượng cửa sổ bằng các nút chọn trực tiếp trên thanh công cụ: `[2 Ô (1x2)]` `[4 Ô (2x2)]` `[6 Ô (2x3)]` `[8 Ô (2x4)]` `[1 Ô]`.
+
+---
+
 ## 🔇 Tính năng Mute hết toàn bộ App (Global Mute)
 
 * Nút bật/tắt âm thanh **`🔊 Âm thanh: BẬT` / `🔇 ĐÃ TẮT HẾT ÂM`** được đặt ở góc trên bên phải thanh công cụ.
 * Khi nhấn nút này:
-  * Toàn bộ 8 tab trình duyệt (4 ô x 2 tab) sẽ lập tức bị **tắt âm thanh hoàn toàn** (`IsMuted = true`).
+  * Toàn bộ các tab trình duyệt đang chạy (lên đến 16 tab: 8 ô x 2 tab) sẽ lập tức bị **tắt âm thanh hoàn toàn** (`IsMuted = true`).
   * Nút chuyển sang màu đỏ cảnh báo `🔇 ĐÃ TẮT HẾT ÂM`.
   * Kể cả khi bạn chuyển qua lại giữa các tab hoặc bật chế độ chia đôi, âm thanh vẫn được giữ ở trạng thái câm tuyệt đối.
 * Khi bấm lại lần nữa, âm thanh của tab đang xem sẽ được khôi phục bình thường.
@@ -34,9 +49,9 @@ Trong mỗi ô (mỗi tài khoản) hiện tại được trang bị thanh quả
 3. **🪟 Nút "Chia đôi 2 Tab":**
    * Cho phép chia đôi không gian trong ô đó thành 2 nửa để bạn nhìn thấy và thao tác cả YouTube lẫn TikTok cùng một lúc!
 4. **Nút điều khiển hàng loạt trên thanh Global (Góc trên bên phải):**
-   * **🔴 Tất cả Tab 1:** Cả 4 ô đồng loạt chuyển sang xem Tab YouTube.
-   * **🎵 Tất cả Tab 2:** Cả 4 ô đồng loạt chuyển sang xem Tab TikTok.
-   * **🪟 Chia đôi 2 Tab:** Bật chế độ chia đôi song song cả YouTube và TikTok trên cả 4 ô (hiển thị cùng lúc 8 khung trình duyệt).
+   * **🔴 Tất cả Tab 1:** Tất cả các ô đồng loạt chuyển sang xem Tab YouTube.
+   * **🎵 Tất cả Tab 2:** Tất cả các ô đồng loạt chuyển sang xem Tab TikTok.
+   * **🪟 Chia đôi 2 Tab:** Bật chế độ chia đôi song song cả YouTube và TikTok trên tất cả các ô (hiển thị cùng lúc lên đến 16 khung trình duyệt).
 
 ---
 
@@ -49,19 +64,19 @@ Trong mỗi ô (mỗi tài khoản) hiện tại được trang bị thanh quả
 3. **🔄 Hướng lướt (Direction):**
    * Lướt xuống (Next) hoặc lướt lên (Prev).
 4. **▶ BẮT ĐẦU AUTO:**
-   * Tự động mở Shorts, thả tym và lướt liên tục trên cả 4 tài khoản cùng lúc.
+   * Tự động mở Shorts, thả tym và lướt liên tục trên tất cả các tài khoản đang hiển thị cùng lúc.
 
 ---
 
 ## 🛡️ Các giải pháp kỹ thuật đã tích hợp
 
 1. **Cô lập phiên đăng nhập 100% (Isolated Profiles):**
-   * Thư mục dữ liệu riêng (`Profiles/Profile_1`, `Profile_2`, `Profile_3`, `Profile_4`).
+   * Thư mục dữ liệu riêng (`Profiles/Profile_1` đến `Profiles/Profile_8`).
 2. **Chống phát hiện Bot (Anti-Detection):**
    * `--disable-blink-features=AutomationControlled`
    * `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` (chống rò rỉ IP thật qua WebRTC khi dùng proxy)
    * Tự động xóa `webdriver` trên Prototype và ẩn `window.chrome.webview`.
 3. **Hỗ trợ Proxy riêng cho từng Profile (HTTP / SOCKS5):**
-   * Cấu hình trong file `proxy.txt` (`ip:port` hoặc `ip:port:user:pass`).
+   * Cấu hình trong file `proxy.txt` (`ip:port` hoặc `ip:port:user:pass`) trong từng thư mục Profile.
 4. **Tự phục hồi khi Renderer Crash:**
    * Bắt sự kiện `ProcessFailed` để tự động reload tab bị lỗi.

@@ -1,0 +1,124 @@
+<Window x:Class="MultiBrowser.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cài đặt hệ thống - MultiBrowser" Height="520" Width="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="#121214" Foreground="#F4F4F5">
+
+    <Window.Resources>
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#60A5FA"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <Style x:Key="SettingRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#E4E4E7"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+
+        <Style x:Key="SettingInputStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#27272A"/>
+            <Setter Property="Foreground" Value="#FAFAFA"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <!-- Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- Settings Body -->
+            <RowDefinition Height="*"/>
+            <!-- Footer Actions -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="⚙️ CÀI ĐẶT HỆ THỐNG" FontSize="16" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Tùy chỉnh số lượng cửa sổ (2, 4, 6, 8) và thông số tự động hóa" FontSize="11" Foreground="#9CA3AF" Margin="0,2,0,0"/>
+            <Separator Background="#27272A" Margin="0,10,0,0"/>
+        </StackPanel>
+
+        <!-- Settings Body -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,10,0">
+
+                <!-- 1. Window Count Selection -->
+                <Border Background="#18181B" BorderBrush="#27272A" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="🖥️ SỐ LƯỢNG CỬA SỔ HIỂN THỊ" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="Chọn số lượng ô trình duyệt độc lập muốn chạy đồng thời:" FontSize="11" Foreground="#A1A1AA" Margin="0,0,0,8"/>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <RadioButton x:Name="RbOpt2" Grid.Row="0" Grid.Column="0" Content="2 Cửa Sổ (Bố cục 1x2)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt4" Grid.Row="0" Grid.Column="1" Content="4 Cửa Sổ (Bố cục 2x2 - Chuẩn)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt6" Grid.Row="1" Grid.Column="0" Content="6 Cửa Sổ (Bố cục 2x3)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt8" Grid.Row="1" Grid.Column="1" Content="8 Cửa Sổ (Bố cục 2x4 - Tối đa)" Style="{StaticResource SettingRadioStyle}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. Default Target URLs -->
+                <Border Background="#18181B" BorderBrush="#27272A" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="🔗 TRANG WEB MẶC ĐỊNH CHO TỪNG TAB" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <TextBlock Text="Tab 1 (Mặc định YouTube Shorts):" FontSize="11" Foreground="#D1D5DB" Margin="0,0,0,4"/>
+                        <TextBox x:Name="TxtTab1Url" Style="{StaticResource SettingInputStyle}" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Tab 2 (Mặc định TikTok):" FontSize="11" Foreground="#D1D5DB" Margin="0,0,0,4"/>
+                        <TextBox x:Name="TxtTab2Url" Style="{StaticResource SettingInputStyle}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 3. Shorts Automation Defaults -->
+                <Border Background="#18181B" BorderBrush="#27272A" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="⚡ TỰ ĐỘNG HÓA YOUTUBE SHORTS" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Thời gian xem mỗi video trước khi lướt (giây):" VerticalAlignment="Center" FontSize="11" Foreground="#D1D5DB"/>
+                            <TextBox x:Name="TxtWatchInterval" Grid.Column="1" Width="60" TextAlignment="Center" Style="{StaticResource SettingInputStyle}"/>
+                        </Grid>
+
+                        <CheckBox x:Name="ChkAutoLikePref" Content="Tự động kiểm tra và thả tym video nếu chưa like" 
+                                  Foreground="#F472B6" FontWeight="SemiBold" FontSize="11" Cursor="Hand" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer Actions -->
+        <Border Grid.Row="2" Padding="0,14,0,0" BorderBrush="#27272A" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Hủy Bỏ" Click="BtnCancel_Click"
+                        Padding="16,8" Margin="0,0,8,0" Background="#27272A" Foreground="#E4E4E7" BorderThickness="0" 
+                        FontWeight="Medium" FontSize="12" Cursor="Hand"/>
+                <Button Content="💾 Lưu Cài Đặt &amp; Áp Dụng" Click="BtnSave_Click"
+                        Padding="16,8" Background="#3B82F6" Foreground="White" BorderThickness="0" 
+                        FontWeight="Bold" FontSize="12" Cursor="Hand"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

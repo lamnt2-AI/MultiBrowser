@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MultiBrowser"
         mc:Ignorable="d"
-        Title="Multi-Account Grid Browser - Multi Google Login" Height="900" Width="1400"
+        Title="Multi-Account Grid Browser - Multi Google Login" Height="900" Width="1450"
         WindowStartupLocation="CenterScreen" Background="#121214">
 
     <Window.Resources>
@@ -71,7 +71,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- App Brand -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                     <TextBlock Text="🌐" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="MULTI BROWSER" FontWeight="Bold" FontSize="13" Foreground="White"/>
@@ -79,19 +79,19 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Layout Selector -->
-                <Border Grid.Column="1" Background="#27272A" CornerRadius="6" Padding="2" Margin="0,0,16,0" VerticalAlignment="Center">
+                <!-- Layout Selector (2, 4, 6, 8 cửa sổ) -->
+                <Border Grid.Column="1" Background="#27272A" CornerRadius="6" Padding="2" Margin="0,0,14,0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="RbLayout4Grid" Content="4 Ô (2x2)" IsChecked="True" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
-                        <RadioButton x:Name="RbLayout3Focus" Content="3 Ô (1 Lớn + 2 Nhỏ)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
-                        <RadioButton x:Name="RbLayout3H" Content="3 Ô (1x3)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
-                        <RadioButton x:Name="RbLayout2H" Content="2 Ô (1x2)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout2" Content="2 Ô (1x2)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout4" Content="4 Ô (2x2)" IsChecked="True" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout6" Content="6 Ô (2x3)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout8" Content="8 Ô (2x4)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
                         <RadioButton x:Name="RbLayout1" Content="1 Ô" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Global Sync URL Bar -->
-                <Grid Grid.Column="2" Margin="0,0,16,0" VerticalAlignment="Center">
+                <Grid Grid.Column="2" Margin="0,0,14,0" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -107,30 +107,35 @@
                 <!-- Global Action Buttons -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="🔴 Tất cả Tab 1" ToolTip="Chuyển tất cả các ô sang Tab 1 (YouTube)" Click="BtnAllTab1_Click"
-                            Padding="8,5" Margin="2,0" Background="#1E3A8A" Foreground="White" BorderThickness="0" 
+                            Padding="7,5" Margin="2,0" Background="#1E3A8A" Foreground="White" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
                     <Button Content="🎵 Tất cả Tab 2" ToolTip="Chuyển tất cả các ô sang Tab 2 (TikTok)" Click="BtnAllTab2_Click"
-                            Padding="8,5" Margin="2,0" Background="#831843" Foreground="White" BorderThickness="0" 
+                            Padding="7,5" Margin="2,0" Background="#831843" Foreground="White" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
                     <Button Content="🪟 Chia Dọc Tất Cả" ToolTip="Chia đôi tất cả các ô theo chiều dọc (Bên trái YouTube, Bên phải TikTok)" Click="BtnAllSplitTab_Click"
-                            Padding="8,5" Margin="2,0" Background="#4C1D95" Foreground="White" BorderThickness="0" 
+                            Padding="7,5" Margin="2,0" Background="#4C1D95" Foreground="White" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
                     
-                    <Separator Width="1" Background="#3F3F46" Margin="6,2"/>
+                    <Separator Width="1" Background="#3F3F46" Margin="5,2"/>
 
                     <Button Content="🔑 Login Google" ToolTip="Mở trang đăng nhập Google trên tất cả các ô" Click="BtnGoogleAll_Click"
-                            Padding="8,5" Margin="2,0" Background="#1D4ED8" Foreground="White" BorderThickness="0" 
+                            Padding="7,5" Margin="2,0" Background="#1D4ED8" Foreground="White" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
-                    <Button Content="🔄 Reload tất cả" ToolTip="Tải lại trang trên tất cả các ô" Click="BtnReloadAll_Click"
-                            Padding="8,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
+                    <Button Content="🔄 Reload" ToolTip="Tải lại trang trên tất cả các ô" Click="BtnReloadAll_Click"
+                            Padding="7,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
                     <Button Content="📁 Profiles" ToolTip="Mở thư mục lưu trữ các Profile tài khoản" Click="BtnOpenProfilesFolder_Click"
-                            Padding="8,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
+                            Padding="7,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+
+                    <!-- Settings Button -->
+                    <Button Content="⚙️ Cài đặt" ToolTip="Cài đặt số lượng cửa sổ (2, 4, 6, 8) và thông số hệ thống" Click="BtnSettings_Click"
+                            Padding="8,5" Margin="2,0" Background="#4F46E5" Foreground="White" BorderThickness="0" 
+                            FontWeight="Bold" FontSize="11" Cursor="Hand"/>
                     
                     <!-- Mute All Toggle Button -->
                     <ToggleButton x:Name="BtnMuteAll" Content="🔊 Âm thanh: BẬT" ToolTip="Bật / Tắt toàn bộ âm thanh trên tất cả các ô trong ứng dụng" Click="BtnToggleMuteAll_Click"
-                                  Padding="10,5" Margin="4,0,2,0" Background="#1F2937" Foreground="#10B981" BorderBrush="#374151" BorderThickness="1" 
+                                  Padding="8,5" Margin="4,0,2,0" Background="#1F2937" Foreground="#10B981" BorderBrush="#374151" BorderThickness="1" 
                                   FontWeight="Bold" FontSize="11" Cursor="Hand"/>
                 </StackPanel>
             </Grid>
@@ -189,13 +194,16 @@
             </Grid>
         </Border>
 
-        <!-- Main Display Container for 4 Browsers -->
+        <!-- Main Display Container for up to 8 Browsers -->
         <Grid x:Name="BrowserContainer" Grid.Row="2" Margin="2">
-            <!-- Rows and Columns will be managed dynamically based on selected layout -->
             <local:BrowserPane x:Name="Pane1" Margin="2"/>
             <local:BrowserPane x:Name="Pane2" Margin="2"/>
             <local:BrowserPane x:Name="Pane3" Margin="2"/>
             <local:BrowserPane x:Name="Pane4" Margin="2"/>
+            <local:BrowserPane x:Name="Pane5" Margin="2" Visibility="Collapsed"/>
+            <local:BrowserPane x:Name="Pane6" Margin="2" Visibility="Collapsed"/>
+            <local:BrowserPane x:Name="Pane7" Margin="2" Visibility="Collapsed"/>
+            <local:BrowserPane x:Name="Pane8" Margin="2" Visibility="Collapsed"/>
         </Grid>
     </Grid>
 </Window>

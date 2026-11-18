@@ -13,11 +13,13 @@ namespace MultiBrowser
 {
     public partial class MainWindow : Window
     {
+        private AppSettings _settings = new();
         private CancellationTokenSource? _autoLoopCts;
         private int _totalLikedCount = 0;
         private int _totalViewedCount = 0;
         private bool _isAllSplit = false;
         private bool _isMuteAll = false;
+        private int _currentWindowCount = 4;
         private BrowserPane[] _panes = Array.Empty<BrowserPane>();
 
         public MainWindow()
@@ -29,19 +31,19 @@ namespace MultiBrowser
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            _panes = new[] { Pane1, Pane2, Pane3, Pane4 };
-            ApplyLayout();
+            _panes = new[] { Pane1, Pane2, Pane3, Pane4, Pane5, Pane6, Pane7, Pane8 };
 
-            // Khởi tạo cả 4 ô trình duyệt độc lập với 4 Profile khác nhau: Tab 1 = YouTube Shorts, Tab 2 = TikTok
-            var tasks = new[]
-            {
-                Pane1.InitializeAsync(1, "Acc 1 (Góc Trái Trên)", "https://www.youtube.com/@lam-kid-studio/shorts", "https://www.tiktok.com"),
-                Pane2.InitializeAsync(2, "Acc 2 (Góc Phải Trên)", "https://www.youtube.com/@lam-kid-studio/shorts", "https://www.tiktok.com"),
-                Pane3.InitializeAsync(3, "Acc 3 (Góc Trái Dưới)", "https://www.youtube.com/@lam-kid-studio/shorts", "https://www.tiktok.com"),
-                Pane4.InitializeAsync(4, "Acc 4 (Góc Phải Dưới)", "https://www.youtube.com/@lam-kid-studio/shorts", "https://www.tiktok.com")
-            };
+            // Tải cấu hình từ settings.json
+            _settings = AppSettings.Load();
+            _currentWindowCount = _settings.WindowCount;
 
-            await Task.WhenAll(tasks);
+            // Đồng bộ cấu hình lên giao diện tự động hóa
+            TxtIntervalSec.Text = _settings.AutoWatchIntervalSec.ToString();
+            ChkAutoLike.IsChecked = _settings.AutoLikeEnabled;
+            UpdateLayoutRadioSelection(_currentWindowCount);
+
+            // Áp dụng bố cục và khởi tạo các ô được chọn
+            await SwitchWindowCountAsync(_currentWindowCount);
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -56,92 +58,166 @@ namespace MultiBrowser
         private IEnumerable<BrowserPane> GetActivePanes() => 
             _panes.Where(p => p.Visibility == Visibility.Visible && p.IsBrowserReady);
 
-        private void LayoutChanged(object sender, RoutedEventArgs e)
+        private void UpdateLayoutRadioSelection(int count)
         {
-            ApplyLayout();
+            if (RbLayout2 == null || RbLayout4 == null || RbLayout6 == null || RbLayout8 == null || RbLayout1 == null) return;
+
+            RbLayout2.IsChecked = (count == 2);
+            RbLayout4.IsChecked = (count == 4);
+            RbLayout6.IsChecked = (count == 6);
+            RbLayout8.IsChecked = (count == 8);
+            RbLayout1.IsChecked = (count == 1);
         }
 
-        private void ApplyLayout()
+        private async void LayoutChanged(object sender, RoutedEventArgs e)
         {
-            if (BrowserContainer == null || Pane1 == null || Pane2 == null || Pane3 == null || Pane4 == null) return;
+            int targetCount = 4;
+            if (RbLayout2.IsChecked == true) targetCount = 2;
+            else if (RbLayout4.IsChecked == true) targetCount = 4;
+            else if (RbLayout6.IsChecked == true) targetCount = 6;
+            else if (RbLayout8.IsChecked == true) targetCount = 8;
+            else if (RbLayout1.IsChecked == true) targetCount = 1;
+
+            _settings.WindowCount = targetCount;
+            _settings.Save();
+
+            await SwitchWindowCountAsync(targetCount);
+        }
+
+        public async Task SwitchWindowCountAsync(int count)
+        {
+            _currentWindowCount = count;
+            ApplyGridLayout(count);
+
+            // Khởi tạo các ô chưa được nạp trong số các ô đang hiển thị (Lazy Init)
+            var initTasks = new List<Task>();
+            for (int i = 0; i < count && i < _panes.Length; i++)
+            {
+                var pane = _panes[i];
+                if (!pane.IsBrowserReady)
+                {
+                    int profileId = i + 1;
+                    string name = $"Acc {profileId} (Profile {profileId})";
+                    initTasks.Add(pane.InitializeAsync(profileId, name, _settings.DefaultUrlTab1, _settings.DefaultUrlTab2));
+                }
+            }
+
+            if (initTasks.Any())
+            {
+                TxtAutoStatus.Text = $"⏳ Đang khởi tạo thêm {initTasks.Count} cửa sổ trình duyệt...";
+                await Task.WhenAll(initTasks);
+                TxtAutoStatus.Text = $"✅ Đã sẵn sàng {count} cửa sổ trình duyệt!";
+            }
+
+            // Đồng bộ trạng thái âm thanh nếu đang Mute All
+            if (_isMuteAll)
+            {
+                foreach (var pane in _panes)
+                {
+                    pane.SetMuteAll(true);
+                }
+            }
+        }
+
+        private void ApplyGridLayout(int count)
+        {
+            if (BrowserContainer == null || _panes.Length == 0) return;
 
             BrowserContainer.RowDefinitions.Clear();
             BrowserContainer.ColumnDefinitions.Clear();
 
-            // Reset spans
-            Grid.SetRowSpan(Pane1, 1);
-            Grid.SetColumnSpan(Pane1, 1);
-            Grid.SetRowSpan(Pane2, 1);
-            Grid.SetColumnSpan(Pane2, 1);
-            Grid.SetRowSpan(Pane3, 1);
-            Grid.SetColumnSpan(Pane3, 1);
-            Grid.SetRowSpan(Pane4, 1);
-            Grid.SetColumnSpan(Pane4, 1);
-
-            if (RbLayout4Grid.IsChecked == true)
+            for (int i = 0; i < _panes.Length; i++)
             {
-                // 4 Ô: Lưới 2x2
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                Grid.SetRow(Pane1, 0); Grid.SetColumn(Pane1, 0); Pane1.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane2, 0); Grid.SetColumn(Pane2, 1); Pane2.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane3, 1); Grid.SetColumn(Pane3, 0); Pane3.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane4, 1); Grid.SetColumn(Pane4, 1); Pane4.Visibility = Visibility.Visible;
+                Grid.SetRowSpan(_panes[i], 1);
+                Grid.SetColumnSpan(_panes[i], 1);
             }
-            else if (RbLayout3Focus.IsChecked == true)
+
+            switch (count)
             {
-                // 3 Ô: 1 Ô lớn bên trái + 2 ô nhỏ xếp dọc bên phải
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                case 1:
+                    // 1 Ô: Toàn màn hình
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                Grid.SetRow(Pane1, 0); Grid.SetColumn(Pane1, 0);
-                Grid.SetRowSpan(Pane1, 2);
-                Pane1.Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[0], 0); Grid.SetColumn(_panes[0], 0); _panes[0].Visibility = Visibility.Visible;
+                    for (int i = 1; i < _panes.Length; i++) _panes[i].Visibility = Visibility.Collapsed;
+                    break;
 
-                Grid.SetRow(Pane2, 0); Grid.SetColumn(Pane2, 1); Pane2.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane3, 1); Grid.SetColumn(Pane3, 1); Pane3.Visibility = Visibility.Visible;
-                Pane4.Visibility = Visibility.Collapsed;
+                case 2:
+                    // 2 Ô: 1 Hàng x 2 Cột (1x2)
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    Grid.SetRow(_panes[0], 0); Grid.SetColumn(_panes[0], 0); _panes[0].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[1], 0); Grid.SetColumn(_panes[1], 1); _panes[1].Visibility = Visibility.Visible;
+                    for (int i = 2; i < _panes.Length; i++) _panes[i].Visibility = Visibility.Collapsed;
+                    break;
+
+                case 6:
+                    // 6 Ô: 2 Hàng x 3 Cột (2x3)
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    Grid.SetRow(_panes[0], 0); Grid.SetColumn(_panes[0], 0); _panes[0].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[1], 0); Grid.SetColumn(_panes[1], 1); _panes[1].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[2], 0); Grid.SetColumn(_panes[2], 2); _panes[2].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[3], 1); Grid.SetColumn(_panes[3], 0); _panes[3].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[4], 1); Grid.SetColumn(_panes[4], 1); _panes[4].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[5], 1); Grid.SetColumn(_panes[5], 2); _panes[5].Visibility = Visibility.Visible;
+                    for (int i = 6; i < _panes.Length; i++) _panes[i].Visibility = Visibility.Collapsed;
+                    break;
+
+                case 8:
+                    // 8 Ô: 2 Hàng x 4 Cột (2x4)
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    Grid.SetRow(_panes[0], 0); Grid.SetColumn(_panes[0], 0); _panes[0].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[1], 0); Grid.SetColumn(_panes[1], 1); _panes[1].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[2], 0); Grid.SetColumn(_panes[2], 2); _panes[2].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[3], 0); Grid.SetColumn(_panes[3], 3); _panes[3].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[4], 1); Grid.SetColumn(_panes[4], 0); _panes[4].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[5], 1); Grid.SetColumn(_panes[5], 1); _panes[5].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[6], 1); Grid.SetColumn(_panes[6], 2); _panes[6].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[7], 1); Grid.SetColumn(_panes[7], 3); _panes[7].Visibility = Visibility.Visible;
+                    break;
+
+                case 4:
+                default:
+                    // 4 Ô: 2 Hàng x 2 Cột (2x2)
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    Grid.SetRow(_panes[0], 0); Grid.SetColumn(_panes[0], 0); _panes[0].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[1], 0); Grid.SetColumn(_panes[1], 1); _panes[1].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[2], 1); Grid.SetColumn(_panes[2], 0); _panes[2].Visibility = Visibility.Visible;
+                    Grid.SetRow(_panes[3], 1); Grid.SetColumn(_panes[3], 1); _panes[3].Visibility = Visibility.Visible;
+                    for (int i = 4; i < _panes.Length; i++) _panes[i].Visibility = Visibility.Collapsed;
+                    break;
             }
-            else if (RbLayout3H.IsChecked == true)
-            {
-                // 3 Ô: 3 cột ngang (1x3)
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
 
-                Grid.SetRow(Pane1, 0); Grid.SetColumn(Pane1, 0); Pane1.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane2, 0); Grid.SetColumn(Pane2, 1); Pane2.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane3, 0); Grid.SetColumn(Pane3, 2); Pane3.Visibility = Visibility.Visible;
-                Pane4.Visibility = Visibility.Collapsed;
-            }
-            else if (RbLayout2H.IsChecked == true)
+        private async void BtnSettings_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new SettingsWindow(_settings) { Owner = this };
+            if (dlg.ShowDialog() == true)
             {
-                // 2 Ô: 2 cột chia đôi
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                Grid.SetRow(Pane1, 0); Grid.SetColumn(Pane1, 0); Pane1.Visibility = Visibility.Visible;
-                Grid.SetRow(Pane2, 0); Grid.SetColumn(Pane2, 1); Pane2.Visibility = Visibility.Visible;
-                Pane3.Visibility = Visibility.Collapsed;
-                Pane4.Visibility = Visibility.Collapsed;
-            }
-            else if (RbLayout1.IsChecked == true)
-            {
-                // 1 Ô: Toàn màn hình
-                BrowserContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                BrowserContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                Grid.SetRow(Pane1, 0); Grid.SetColumn(Pane1, 0); Pane1.Visibility = Visibility.Visible;
-                Pane2.Visibility = Visibility.Collapsed;
-                Pane3.Visibility = Visibility.Collapsed;
-                Pane4.Visibility = Visibility.Collapsed;
+                // Cập nhật cài đặt mới
+                TxtIntervalSec.Text = _settings.AutoWatchIntervalSec.ToString();
+                ChkAutoLike.IsChecked = _settings.AutoLikeEnabled;
+                UpdateLayoutRadioSelection(_settings.WindowCount);
+                await SwitchWindowCountAsync(_settings.WindowCount);
+                TxtAutoStatus.Text = $"⚙️ Đã áp dụng cài đặt: {_settings.WindowCount} cửa sổ!";
             }
         }
 
@@ -187,7 +263,7 @@ namespace MultiBrowser
             {
                 pane.SelectTab(1);
             }
-            TxtAutoStatus.Text = "Đã chuyển tất cả các ô sang Tab 1 (YouTube)";
+            TxtAutoStatus.Text = $"Đã chuyển tất cả {GetActivePanes().Count()} ô sang Tab 1 (YouTube)";
         }
 
         private void BtnAllTab2_Click(object sender, RoutedEventArgs e)
@@ -197,7 +273,7 @@ namespace MultiBrowser
             {
                 pane.SelectTab(2);
             }
-            TxtAutoStatus.Text = "Đã chuyển tất cả các ô sang Tab 2 (TikTok)";
+            TxtAutoStatus.Text = $"Đã chuyển tất cả {GetActivePanes().Count()} ô sang Tab 2 (TikTok)";
         }
 
         private void BtnAllSplitTab_Click(object sender, RoutedEventArgs e)
@@ -208,7 +284,7 @@ namespace MultiBrowser
                 pane.SetSplitMode(_isAllSplit);
             }
             TxtAutoStatus.Text = _isAllSplit 
-                ? "Đã bật chế độ chia đôi DỌC (Trái: YouTube | Phải: TikTok) trên tất cả các ô!" 
+                ? $"Đã bật chế độ chia đôi DỌC (Trái: YouTube | Phải: TikTok) trên tất cả các ô!" 
                 : "Đã trở về chế độ 1 tab.";
         }
 
@@ -299,8 +375,8 @@ namespace MultiBrowser
 
             if (!int.TryParse(TxtIntervalSec.Text, out int intervalSec) || intervalSec < 1)
             {
-                intervalSec = 8;
-                TxtIntervalSec.Text = "8";
+                intervalSec = _settings.AutoWatchIntervalSec;
+                TxtIntervalSec.Text = intervalSec.ToString();
             }
 
             string direction = CmbDirection.SelectedIndex == 1 ? "up" : "down";
@@ -311,7 +387,7 @@ namespace MultiBrowser
 
             BtnStartAutoWatch.IsEnabled = false;
             BtnStartAutoWatch.Opacity = 0.6;
-            TxtAutoStatus.Text = "▶ Bắt đầu kiểm tra mở player Shorts...";
+            TxtAutoStatus.Text = "▶ Bắt đầu kiểm tra mở player Shorts trên các ô hoạt động...";
 
             try
             {
@@ -347,7 +423,7 @@ namespace MultiBrowser
                     for (int s = intervalSec; s > 0; s--)
                     {
                         token.ThrowIfCancellationRequested();
-                        TxtAutoStatus.Text = $"▶ Đang xem Video #{_totalViewedCount} | Đã thả {_totalLikedCount} ❤️ | Chuyển tiếp sau {s}s...";
+                        TxtAutoStatus.Text = $"▶ Đang xem Video #{_totalViewedCount} ({activePanes.Count} ô) | Đã thả {_totalLikedCount} ❤️ | Chuyển tiếp sau {s}s...";
                         await Task.Delay(1000, token);
                     }
 
