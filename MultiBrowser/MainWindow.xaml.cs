@@ -377,22 +377,20 @@ namespace MultiBrowser
 
         private void StopAutoLoop()
         {
-            if (_autoLoopCts != null)
+            var cts = _autoLoopCts;
+            if (cts != null)
             {
                 try
                 {
-                    _autoLoopCts.Cancel();
+                    cts.Cancel();
                 }
                 catch { }
-                finally
-                {
-                    _autoLoopCts.Dispose();
-                    _autoLoopCts = null;
-                }
             }
 
-            if (BtnStartPlaylist != null) { BtnStartPlaylist.IsEnabled = true; BtnStartPlaylist.Opacity = 1.0; }
-            if (BtnStartAutoWatch != null) { BtnStartAutoWatch.IsEnabled = true; BtnStartAutoWatch.Opacity = 1.0; }
+            foreach (var pane in _panes)
+            {
+                _ = pane.StopAutoScrollAsync();
+            }
         }
 
         // Tự động hóa trực tiếp trên UI Dispatcher thread với async/await non-blocking (Chuẩn Concurrency)
@@ -415,6 +413,7 @@ namespace MultiBrowser
 
             BtnStartAutoWatch.IsEnabled = false;
             BtnStartAutoWatch.Opacity = 0.6;
+            if (BtnStartPlaylist != null) { BtnStartPlaylist.IsEnabled = false; BtnStartPlaylist.Opacity = 0.6; }
             TxtAutoStatus.Text = "▶ Bắt đầu kiểm tra mở player Shorts trên các ô hoạt động...";
 
             try
@@ -476,12 +475,15 @@ namespace MultiBrowser
             }
             finally
             {
-                Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts);
+                bool isLastRun = Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts) == currentCts;
                 currentCts.Dispose();
 
-                BtnStartAutoWatch.IsEnabled = true;
-                BtnStartAutoWatch.Opacity = 1.0;
-                TxtAutoStatus.Text = $"⏹ Hoàn tất: Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
+                if (isLastRun)
+                {
+                    if (BtnStartAutoWatch != null) { BtnStartAutoWatch.IsEnabled = true; BtnStartAutoWatch.Opacity = 1.0; }
+                    if (BtnStartPlaylist != null) { BtnStartPlaylist.IsEnabled = true; BtnStartPlaylist.Opacity = 1.0; }
+                    TxtAutoStatus.Text = $"⏹ Hoàn tất: Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
+                }
             }
         }
 
@@ -534,13 +536,14 @@ namespace MultiBrowser
             }
             finally
             {
-                Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts);
+                bool isLastRun = Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts) == currentCts;
                 currentCts.Dispose();
 
-                BtnStartPlaylist.IsEnabled = true;
-                BtnStartPlaylist.Opacity = 1.0;
-                BtnStartAutoWatch.IsEnabled = true;
-                BtnStartAutoWatch.Opacity = 1.0;
+                if (isLastRun)
+                {
+                    if (BtnStartPlaylist != null) { BtnStartPlaylist.IsEnabled = true; BtnStartPlaylist.Opacity = 1.0; }
+                    if (BtnStartAutoWatch != null) { BtnStartAutoWatch.IsEnabled = true; BtnStartAutoWatch.Opacity = 1.0; }
+                }
             }
         }
 

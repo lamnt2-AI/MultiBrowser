@@ -858,15 +858,18 @@ namespace MultiBrowser
 
             string script = @"
             (async function() {
+                window.__autoScrollActive = true;
                 let lastHeight = 0;
                 let unchanged = 0;
                 let maxLoops = 40;
 
-                while (maxLoops > 0) {
+                while (window.__autoScrollActive && maxLoops > 0) {
                     maxLoops--;
                     let h = document.documentElement.scrollHeight || document.body.scrollHeight;
                     window.scrollTo({ top: h, behavior: 'smooth' });
                     await new Promise(r => setTimeout(r, 900));
+
+                    if (!window.__autoScrollActive) return 'CANCELLED';
 
                     let newH = document.documentElement.scrollHeight || document.body.scrollHeight;
                     if (newH === lastHeight) {
@@ -878,7 +881,10 @@ namespace MultiBrowser
                     }
                 }
 
+                if (!window.__autoScrollActive) return 'CANCELLED';
+
                 await new Promise(r => setTimeout(r, 1000));
+                if (!window.__autoScrollActive) return 'CANCELLED';
 
                 let allItems = Array.from(document.querySelectorAll(
                     'ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], [data-e2e=""user-post-item""] a, a[href*=""/reel/""], a[href*=""/video""]'
@@ -888,10 +894,13 @@ namespace MultiBrowser
                     let lastItem = allItems[allItems.length - 1];
                     lastItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await new Promise(r => setTimeout(r, 600));
+                    if (!window.__autoScrollActive) return 'CANCELLED';
                     lastItem.click();
+                    window.__autoScrollActive = false;
                     return 'CLICKED_OLDEST';
                 }
 
+                window.__autoScrollActive = false;
                 return 'NO_ITEMS';
             })();";
 
