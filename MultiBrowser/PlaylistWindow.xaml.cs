@@ -119,13 +119,13 @@ namespace MultiBrowser
             else if (RbRandomDuration.IsChecked == true) durationMode = WatchDurationMode.RandomRange;
 
             int.TryParse(TxtSecFixed.Text, out int fixedSec);
-            if (fixedSec < 1) fixedSec = 15;
+            fixedSec = Math.Clamp(fixedSec < 1 ? 15 : fixedSec, 1, 86400);
 
             int.TryParse(TxtSecMax.Text, out int maxSec);
-            if (maxSec < fixedSec) maxSec = fixedSec + 15;
+            maxSec = Math.Clamp(maxSec < fixedSec ? fixedSec + 15 : maxSec, fixedSec, 86400);
 
             int.TryParse(TxtVideoCount.Text, out int videoCount);
-            if (videoCount < 1) videoCount = 1;
+            videoCount = Math.Clamp(videoCount < 1 ? 1 : videoCount, 1, 10000);
 
             var newItem = new PlaylistItem
             {
@@ -232,8 +232,8 @@ namespace MultiBrowser
                 Config.Items.Add(item);
             }
             Config.LoopContinuous = ChkLoopContinuous.IsChecked == true;
-            if (int.TryParse(TxtDelayBetweenLinks.Text, out int delay) && delay >= 0)
-                Config.DelayBetweenLinksSec = delay;
+            if (int.TryParse(TxtDelayBetweenLinks.Text, out int delay))
+                Config.DelayBetweenLinksSec = Math.Clamp(delay, 0, 86400);
 
             Config.Save();
         }

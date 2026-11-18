@@ -680,7 +680,9 @@ namespace MultiBrowser
                         }
                         else if (step.DurationMode == WatchDurationMode.RandomRange)
                         {
-                            int rSec = new Random().Next(Math.Min(step.MinSeconds, step.MaxSeconds), Math.Max(step.MinSeconds, step.MaxSeconds) + 1);
+                            int minSec = Math.Clamp(Math.Min(step.MinSeconds, step.MaxSeconds), 1, 86400);
+                            int maxSec = Math.Clamp(Math.Max(step.MinSeconds, step.MaxSeconds), minSec, 86400);
+                            int rSec = (minSec == maxSec) ? minSec : new Random().Next(minSec, maxSec + 1);
                             for (int s = rSec; s > 0; s--)
                             {
                                 token.ThrowIfCancellationRequested();
@@ -690,7 +692,8 @@ namespace MultiBrowser
                         }
                         else
                         {
-                            for (int s = step.FixedSeconds; s > 0; s--)
+                            int fixedSec = Math.Clamp(step.FixedSeconds, 1, 86400);
+                            for (int s = fixedSec; s > 0; s--)
                             {
                                 token.ThrowIfCancellationRequested();
                                 TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Chuyển sau {s}s... | Đã thả {_totalLikedCount} ❤️";
@@ -710,9 +713,10 @@ namespace MultiBrowser
                     // Nghỉ giữa các bước liên kết
                     if (i < config.Items.Count - 1 || config.LoopContinuous)
                     {
-                        int delaySec = Math.Max(0, config.DelayBetweenLinksSec);
+                        int delaySec = Math.Clamp(config.DelayBetweenLinksSec, 0, 86400);
                         TxtAutoStatus.Text = $"⏳ Xong bước {i + 1}/{config.Items.Count}. Nghỉ {delaySec}s trước khi mở link tiếp theo...";
-                        await Task.Delay(delaySec * 1000, token);
+                        int delayMs = (int)Math.Min((long)delaySec * 1000, (long)int.MaxValue);
+                        await Task.Delay(delayMs, token);
                     }
                 }
 
@@ -786,9 +790,9 @@ namespace MultiBrowser
 
         public async Task<List<PlaylistItem>> AutoArrangeAndRunPlaylistFromApiAsync(PlaylistApiRequest request)
         {
-            int videoCountPerLink = Math.Max(1, request.VideoCountPerLink);
-            int delayBetweenLinksSec = Math.Max(0, request.DelayBetweenLinksSec);
-            int fixedSeconds = Math.Max(1, request.FixedSeconds);
+            int videoCountPerLink = Math.Clamp(request.VideoCountPerLink, 1, 10000);
+            int delayBetweenLinksSec = Math.Clamp(request.DelayBetweenLinksSec, 0, 86400);
+            int fixedSeconds = Math.Clamp(request.FixedSeconds, 1, 86400);
 
             var newItems = new List<PlaylistItem>();
             if (request.Links != null)

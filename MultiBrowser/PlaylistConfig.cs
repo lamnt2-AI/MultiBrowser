@@ -33,11 +33,13 @@ namespace MultiBrowser
                         {
                             foreach (var item in config.Items)
                             {
-                                if (item.VideoCount < 1) item.VideoCount = 1;
-                                if (item.FixedSeconds < 1) item.FixedSeconds = 5;
+                                item.VideoCount = Math.Clamp(item.VideoCount < 1 ? 1 : item.VideoCount, 1, 10000);
+                                item.FixedSeconds = Math.Clamp(item.FixedSeconds < 1 ? 15 : item.FixedSeconds, 1, 86400);
+                                item.MinSeconds = Math.Clamp(item.MinSeconds < 1 ? 10 : item.MinSeconds, 1, 86400);
+                                item.MaxSeconds = Math.Clamp(item.MaxSeconds < item.MinSeconds ? item.MinSeconds + 15 : item.MaxSeconds, item.MinSeconds, 86400);
                             }
                         }
-                        if (config.DelayBetweenLinksSec < 0) config.DelayBetweenLinksSec = 0;
+                        config.DelayBetweenLinksSec = Math.Clamp(config.DelayBetweenLinksSec, 0, 86400);
                         return config;
                     }
                 }
