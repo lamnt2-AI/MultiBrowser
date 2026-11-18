@@ -64,6 +64,7 @@ namespace MultiBrowser
                 _listener.Prefixes.Add($"http://localhost:{_port}/");
                 _listener.Start();
                 _isRunning = true;
+                WritePortFile(_port);
 
                 Task.Run(ListenLoopAsync);
             }
@@ -78,6 +79,7 @@ namespace MultiBrowser
                     _listener.Prefixes.Add($"http://localhost:{_port}/");
                     _listener.Start();
                     _isRunning = true;
+                    WritePortFile(_port);
                     Task.Run(ListenLoopAsync);
                 }
                 catch
@@ -85,6 +87,16 @@ namespace MultiBrowser
                     _isRunning = false;
                 }
             }
+        }
+
+        private static void WritePortFile(int port)
+        {
+            try
+            {
+                string portFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "port.txt");
+                File.WriteAllText(portFilePath, port.ToString());
+            }
+            catch { }
         }
 
         private async Task ListenLoopAsync()

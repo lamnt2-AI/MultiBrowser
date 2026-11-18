@@ -406,8 +406,9 @@ namespace MultiBrowser
             string direction = CmbDirection.SelectedIndex == 1 ? "up" : "down";
             bool shouldLike = ChkAutoLike.IsChecked == true;
 
-            _autoLoopCts = new CancellationTokenSource();
-            var token = _autoLoopCts.Token;
+            var currentCts = new CancellationTokenSource();
+            _autoLoopCts = currentCts;
+            var token = currentCts.Token;
 
             BtnStartAutoWatch.IsEnabled = false;
             BtnStartAutoWatch.Opacity = 0.6;
@@ -468,11 +469,9 @@ namespace MultiBrowser
             }
             finally
             {
-                if (_autoLoopCts != null)
-                {
-                    try { _autoLoopCts.Dispose(); } catch { }
-                    _autoLoopCts = null;
-                }
+                Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts);
+                currentCts.Dispose();
+
                 BtnStartAutoWatch.IsEnabled = true;
                 BtnStartAutoWatch.Opacity = 1.0;
                 TxtAutoStatus.Text = $"⏹ Hoàn tất: Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
@@ -505,8 +504,9 @@ namespace MultiBrowser
                 if (dlg.ShowDialog() != true || !dlg.ShouldStartImmediately) return;
             }
 
-            _autoLoopCts = new CancellationTokenSource();
-            var token = _autoLoopCts.Token;
+            var currentCts = new CancellationTokenSource();
+            _autoLoopCts = currentCts;
+            var token = currentCts.Token;
 
             BtnStartPlaylist.IsEnabled = false;
             BtnStartPlaylist.Opacity = 0.6;
@@ -527,11 +527,9 @@ namespace MultiBrowser
             }
             finally
             {
-                if (_autoLoopCts != null)
-                {
-                    try { _autoLoopCts.Dispose(); } catch { }
-                    _autoLoopCts = null;
-                }
+                Interlocked.CompareExchange(ref _autoLoopCts, null, currentCts);
+                currentCts.Dispose();
+
                 BtnStartPlaylist.IsEnabled = true;
                 BtnStartPlaylist.Opacity = 1.0;
                 BtnStartAutoWatch.IsEnabled = true;

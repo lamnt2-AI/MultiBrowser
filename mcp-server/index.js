@@ -37,15 +37,42 @@ function getApiToken() {
   return '';
 }
 
-// Helper to make HTTP requests to the running MultiBrowser WPF App
-function callApi(endpoint, method = 'GET', data = null) {
+// Tự động đọc port.txt mà MultiBrowser đã ghi khi khởi động
+function getActualPort() {
+  if (process.env.MULTIBROWSER_PORT) {
+    const p = parseInt(process.env.MULTIBROWSER_PORT, 10);
+    if (!isNaN(p)) return p;
+  }
+
+  const potentialPaths = [
+    path.join(__dirname, '..', 'port.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'publish', 'port.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Debug', 'net10.0-windows', 'port.txt'),
+    path.join(process.cwd(), 'port.txt')
+  ];
+
+  for (const p of potentialPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, 'utf8').trim();
+        const port = parseInt(content, 10);
+        if (!isNaN(port) && port > 0) return port;
+      }
+    } catch (e) {}
+  }
+  return API_PORT;
+}
+
+// Helper to make HTTP requests to the running MultiBrowser WPF App with fallback
+function callApi(endpoint, method = 'GET', data = null, attemptedFallback = false) {
   return new Promise((resolve, reject) => {
     const postData = data ? JSON.stringify(data) : '';
     const token = getApiToken();
+    const currentPort = getActualPort();
 
     const options = {
       hostname: API_HOST,
-      port: API_PORT,
+      port: currentPort,
       path: endpoint,
       method: method,
       headers: {
@@ -63,24 +90,36 @@ function callApi(endpoint, method = 'GET', data = null) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(body);
+          // Nếu port 5055 bị chiếm bởi service khác (không phải MultiBrowser)
+          if (!attemptedFallback && currentPort === 5055 && res.statusCode === 404 && !parsed.appName) {
+            API_PORT = 5056;
+            callApi(endpoint, method, data, true).then(resolve).catch(reject);
+            return;
+          }
           resolve(parsed);
         } catch (e) {
+          // Phản hồi không phải JSON của MultiBrowser (ví dụ service khác đang dùng port 5055)
+          if (!attemptedFallback && currentPort === 5055) {
+            API_PORT = 5056;
+            callApi(endpoint, method, data, true).then(resolve).catch(reject);
+            return;
+          }
           resolve({ raw: body, statusCode: res.statusCode });
         }
       });
     });
 
     req.on('error', (err) => {
-      // If port 5055 fails with ECONNREFUSED, try port 5056 fallback
-      if (err.code === 'ECONNREFUSED' && API_PORT === 5055) {
+      // Nếu port 5055 bị từ chối kết nối, thử fallback sang 5056
+      if (!attemptedFallback && currentPort === 5055) {
         API_PORT = 5056;
-        callApi(endpoint, method, data).then(resolve).catch(reject);
+        callApi(endpoint, method, data, true).then(resolve).catch(reject);
         return;
       }
 
       resolve({
         success: false,
-        error: `Không thể kết nối đến MultiBrowser (Port ${API_PORT}). Hãy chắc chắn ứng dụng MultiBrowser.exe đang chạy trên màn hình của bạn!`,
+        error: `Không thể kết nối đến MultiBrowser (Port ${currentPort}). Hãy chắc chắn ứng dụng MultiBrowser.exe đang chạy trên màn hình của bạn!`,
         details: err.message
       });
     });
