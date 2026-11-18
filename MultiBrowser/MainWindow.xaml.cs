@@ -217,6 +217,9 @@ namespace MultiBrowser
 
         private async void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
+            string oldUrl1 = _settings.DefaultUrlTab1;
+            string oldUrl2 = _settings.DefaultUrlTab2;
+
             var dlg = new SettingsWindow(_settings) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
@@ -225,6 +228,16 @@ namespace MultiBrowser
                 ChkAutoLike.IsChecked = _settings.AutoLikeEnabled;
                 UpdateLayoutRadioSelection(_settings.WindowCount);
                 await SwitchWindowCountAsync(_settings.WindowCount);
+
+                // Nếu có cập nhật URL mặc định, áp dụng ngay cho các ô đang hoạt động
+                if (oldUrl1 != _settings.DefaultUrlTab1 || oldUrl2 != _settings.DefaultUrlTab2)
+                {
+                    foreach (var pane in GetActivePanes())
+                    {
+                        pane.UpdateDefaultUrls(_settings.DefaultUrlTab1, _settings.DefaultUrlTab2);
+                    }
+                }
+
                 TxtAutoStatus.Text = $"⚙️ Đã áp dụng cài đặt: {_settings.WindowCount} cửa sổ!";
             }
         }
@@ -455,6 +468,11 @@ namespace MultiBrowser
             }
             finally
             {
+                if (_autoLoopCts != null)
+                {
+                    try { _autoLoopCts.Dispose(); } catch { }
+                    _autoLoopCts = null;
+                }
                 BtnStartAutoWatch.IsEnabled = true;
                 BtnStartAutoWatch.Opacity = 1.0;
                 TxtAutoStatus.Text = $"⏹ Hoàn tất: Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
@@ -509,6 +527,11 @@ namespace MultiBrowser
             }
             finally
             {
+                if (_autoLoopCts != null)
+                {
+                    try { _autoLoopCts.Dispose(); } catch { }
+                    _autoLoopCts = null;
+                }
                 BtnStartPlaylist.IsEnabled = true;
                 BtnStartPlaylist.Opacity = 1.0;
                 BtnStartAutoWatch.IsEnabled = true;
@@ -774,8 +797,8 @@ namespace MultiBrowser
             _playlistConfig.DelayBetweenLinksSec = request.DelayBetweenLinksSec;
             _playlistConfig.Save();
 
-            // Khởi chạy ngay lập tức trên app
-            await StartPlaylistExecutionAsync();
+            // Khởi chạy ngay lập tức trên app ở background, không block API response (tránh timeout khi loop continuous)
+            _ = StartPlaylistExecutionAsync();
 
             return newItems;
         }

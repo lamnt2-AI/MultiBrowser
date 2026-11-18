@@ -354,6 +354,23 @@ namespace MultiBrowser
             }
         }
 
+        public void UpdateDefaultUrls(string urlTab1, string urlTab2)
+        {
+            if (!_isInitialized) return;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(urlTab1) && BrowserControl1.CoreWebView2 != null)
+                {
+                    BrowserControl1.CoreWebView2.Navigate(urlTab1);
+                }
+                if (!string.IsNullOrWhiteSpace(urlTab2) && BrowserControl2.CoreWebView2 != null)
+                {
+                    BrowserControl2.CoreWebView2.Navigate(urlTab2);
+                }
+            }
+            catch { }
+        }
+
         private void BtnBack_Click(object sender, RoutedEventArgs e)
         {
             if (_isInitialized && ActiveBrowser.CanGoBack)
