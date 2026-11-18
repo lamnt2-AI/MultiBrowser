@@ -780,13 +780,29 @@ namespace MultiBrowser
                 }
 
                 // 3. TikTok
-                let tiktokLike = document.querySelector('[data-e2e=""like-icon""], span[data-e2e=""like-icon""], button[aria-label*=""Like""], button[aria-label*=""Thích""]');
-                if (tiktokLike) {
-                    tiktokLike.click();
+                let tiktokBtn = document.querySelector('[data-e2e=""like-icon""]')?.closest('button') 
+                    || document.querySelector('button[aria-label*=""Like""], button[aria-label*=""Thích""], [data-e2e=""like-icon""]');
+                if (tiktokBtn) {
+                    let aria = tiktokBtn.getAttribute('aria-label') || '';
+                    let pressed = tiktokBtn.getAttribute('aria-pressed');
+                    if (pressed === 'true' || aria.includes('Unlike') || aria.includes('Bỏ thích') || aria.includes('Đã thích')) {
+                        return 'ALREADY_LIKED';
+                    }
+                    let svg = tiktokBtn.querySelector('svg') || (tiktokBtn.tagName && tiktokBtn.tagName.toLowerCase() === 'svg' ? tiktokBtn : null);
+                    if (svg) {
+                        let col = window.getComputedStyle(svg).color || '';
+                        let fill = svg.getAttribute('fill') || '';
+                        if (col.includes('254, 44, 85') || col.includes('255, 59, 92') || (fill && fill !== 'none' && fill !== 'currentColor')) {
+                            return 'ALREADY_LIKED';
+                        }
+                    }
+                    tiktokBtn.click();
                     return 'LIKED_SUCCESS';
                 }
 
                 // 4. Facebook Reels & Video
+                let fbLiked = document.querySelector('div[aria-label*=""Gỡ Thích""], div[aria-label*=""Bỏ thích""], div[aria-pressed=""true""][aria-label*=""Thích""]');
+                if (fbLiked) return 'ALREADY_LIKED';
                 let fbLike = document.querySelector('div[aria-label=""Thích""][role=""button""], div[aria-label=""Like""][role=""button""], div[aria-label=""Bày tỏ cảm xúc: Thích""]');
                 if (fbLike) {
                     fbLike.click();
@@ -794,6 +810,8 @@ namespace MultiBrowser
                 }
 
                 // 5. Instagram Reels
+                let igLiked = document.querySelector('svg[aria-label*=""Unlike""], svg[aria-label*=""Bỏ thích""], svg[aria-label*=""Không thích""]');
+                if (igLiked) return 'ALREADY_LIKED';
                 let igLike = document.querySelector('svg[aria-label=""Like""], svg[aria-label=""Thích""]')?.closest('button') || document.querySelector('svg[aria-label=""Like""], svg[aria-label=""Thích""]');
                 if (igLike) {
                     igLike.click();
@@ -894,7 +912,7 @@ namespace MultiBrowser
                 if (!window.__autoScrollActive) return 'CANCELLED';
 
                 let allItems = Array.from(document.querySelectorAll(
-                    'ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], [data-e2e=""user-post-item""] a, a[href*=""/reel/""], a[href*=""/video""]'
+                    'ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], [data-e2e=""user-post-item""] a, a[href*=""/reel/""], a[href*=""/video""], ytd-rich-item-renderer a#video-title-link, ytd-grid-video-renderer a#video-title, a[href*=""/watch?v=""]'
                 ));
 
                 if (allItems.length > 0) {
@@ -930,6 +948,51 @@ namespace MultiBrowser
             if (platform == PlatformType.YouTubeShorts)
             {
                 return await EnsureShortsPlayerOpenAsync();
+            }
+            else if (platform == PlatformType.YouTubeLong)
+            {
+                string script = @"
+                (function() {
+                    if (window.location.pathname.includes('/watch')) {
+                        let vid = document.querySelector('video');
+                        if (vid && vid.paused) {
+                            vid.play().catch(()=>{});
+                        }
+                        return 'IN_PLAYER';
+                    }
+                    // Trên trang kênh YouTube hoặc danh sách video, tìm và mở video đầu tiên
+                    let firstVideo = document.querySelector('ytd-rich-item-renderer a#video-title-link, ytd-grid-video-renderer a#video-title, #video-title[href*=""/watch""], a[href*=""/watch?v=""]');
+                    if (firstVideo) {
+                        firstVideo.click();
+                        return 'CLICKED_VIDEO';
+                    }
+                    return 'NO_VIDEO_FOUND';
+                })();";
+                try {
+                    var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                    return raw != null && !raw.Contains("NO_VIDEO_FOUND");
+                } catch { return false; }
+            }
+            else if (platform == PlatformType.FacebookVideo)
+            {
+                string script = @"
+                (function() {
+                    if (window.location.pathname.includes('/watch') || window.location.pathname.includes('/videos/')) {
+                        let vid = document.querySelector('video');
+                        if (vid && vid.paused) vid.play().catch(()=>{});
+                        return 'IN_PLAYER';
+                    }
+                    let firstVideo = document.querySelector('a[href*=""/watch/""], a[href*=""/videos/""]');
+                    if (firstVideo) {
+                        firstVideo.click();
+                        return 'CLICKED_VIDEO';
+                    }
+                    return 'IN_PLAYER';
+                })();";
+                try {
+                    var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                    return raw != null;
+                } catch { return true; }
             }
             else if (platform == PlatformType.TikTok)
             {

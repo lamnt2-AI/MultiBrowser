@@ -801,7 +801,9 @@ namespace MultiBrowser
                         durationMode = parsedMode;
                     }
 
-                    int count = (platform == PlatformType.YouTubeLong || platform == PlatformType.FacebookVideo)
+                    bool isSpecificSingleVideo = (platform == PlatformType.YouTubeLong && (link.Contains("watch?v=") || link.Contains("youtu.be/"))) ||
+                                                (platform == PlatformType.FacebookVideo && (link.Contains("/videos/") || link.Contains("/watch/")));
+                    int count = isSpecificSingleVideo
                         ? 1
                         : videoCountPerLink;
 
