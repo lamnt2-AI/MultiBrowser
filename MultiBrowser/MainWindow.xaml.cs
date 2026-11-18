@@ -600,7 +600,7 @@ namespace MultiBrowser
                     }
 
                     // 3. Thực thi xem lần lượt N video trong bước này
-                    int targetCount = step.VideoCount;
+                    int targetCount = Math.Max(1, step.VideoCount);
                     for (int vIdx = 1; vIdx <= targetCount; vIdx++)
                     {
                         token.ThrowIfCancellationRequested();
@@ -688,8 +688,9 @@ namespace MultiBrowser
                     // Nghỉ giữa các bước liên kết
                     if (i < config.Items.Count - 1 || config.LoopContinuous)
                     {
-                        TxtAutoStatus.Text = $"⏳ Xong bước {i + 1}/{config.Items.Count}. Nghỉ {config.DelayBetweenLinksSec}s trước khi mở link tiếp theo...";
-                        await Task.Delay(config.DelayBetweenLinksSec * 1000, token);
+                        int delaySec = Math.Max(0, config.DelayBetweenLinksSec);
+                        TxtAutoStatus.Text = $"⏳ Xong bước {i + 1}/{config.Items.Count}. Nghỉ {delaySec}s trước khi mở link tiếp theo...";
+                        await Task.Delay(delaySec * 1000, token);
                     }
                 }
 
@@ -762,6 +763,10 @@ namespace MultiBrowser
         {
             StopAutoLoop();
 
+            int videoCountPerLink = Math.Max(1, request.VideoCountPerLink);
+            int delayBetweenLinksSec = Math.Max(0, request.DelayBetweenLinksSec);
+            int fixedSeconds = Math.Max(1, request.FixedSeconds);
+
             var newItems = new List<PlaylistItem>();
             if (request.Links != null)
             {
@@ -792,7 +797,7 @@ namespace MultiBrowser
 
                     int count = (platform == PlatformType.YouTubeLong || platform == PlatformType.FacebookVideo)
                         ? 1
-                        : request.VideoCountPerLink;
+                        : videoCountPerLink;
 
                     newItems.Add(new PlaylistItem
                     {
@@ -801,7 +806,7 @@ namespace MultiBrowser
                         Platform = platform,
                         Strategy = strategy,
                         DurationMode = durationMode,
-                        FixedSeconds = request.FixedSeconds,
+                        FixedSeconds = fixedSeconds,
                         VideoCount = count,
                         AutoLike = request.AutoLike
                     });
@@ -810,7 +815,7 @@ namespace MultiBrowser
 
             _playlistConfig.Items = newItems;
             _playlistConfig.LoopContinuous = request.LoopContinuous;
-            _playlistConfig.DelayBetweenLinksSec = request.DelayBetweenLinksSec;
+            _playlistConfig.DelayBetweenLinksSec = delayBetweenLinksSec;
             _playlistConfig.Save();
 
             // Khởi chạy ngay lập tức trên app ở background, không block API response (tránh timeout khi loop continuous)

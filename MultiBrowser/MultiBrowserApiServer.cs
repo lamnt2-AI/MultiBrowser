@@ -268,16 +268,29 @@ namespace MultiBrowser
                     var playlistPayload = JsonSerializer.Deserialize<PlaylistApiRequest>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (playlistPayload != null && playlistPayload.Links != null && playlistPayload.Links.Any())
                     {
-                        // Sửa lỗi nested-task: invoke synchronous method setup trên UI thread rồi await task kết quả
-                        var taskOp = _mainWindow.Dispatcher.Invoke(() => _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload));
-                        var createdItems = await taskOp;
-
-                        responseData = new
+                        if (playlistPayload.VideoCountPerLink < 1)
                         {
-                            success = true,
-                            message = $"Đã tự động phân tích và bắt đầu chạy kịch bản gồm {createdItems.Count} mục tiêu trên app!",
-                            items = createdItems
-                        };
+                            res.StatusCode = 400;
+                            responseData = new { success = false, error = "Tham số 'videoCountPerLink' phải lớn hơn hoặc bằng 1." };
+                        }
+                        else if (playlistPayload.DelayBetweenLinksSec < 0)
+                        {
+                            res.StatusCode = 400;
+                            responseData = new { success = false, error = "Tham số 'delayBetweenLinksSec' không được là số âm." };
+                        }
+                        else
+                        {
+                            // Sửa lỗi nested-task: invoke synchronous method setup trên UI thread rồi await task kết quả
+                            var taskOp = _mainWindow.Dispatcher.Invoke(() => _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload));
+                            var createdItems = await taskOp;
+
+                            responseData = new
+                            {
+                                success = true,
+                                message = $"Đã tự động phân tích và bắt đầu chạy kịch bản gồm {createdItems.Count} mục tiêu trên app!",
+                                items = createdItems
+                            };
+                        }
                     }
                     else
                     {

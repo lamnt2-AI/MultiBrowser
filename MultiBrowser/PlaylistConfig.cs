@@ -23,7 +23,19 @@ namespace MultiBrowser
                 {
                     string json = File.ReadAllText(path);
                     var config = JsonSerializer.Deserialize<PlaylistConfig>(json);
-                    if (config != null) return config;
+                    if (config != null)
+                    {
+                        if (config.DelayBetweenLinksSec < 0) config.DelayBetweenLinksSec = 0;
+                        if (config.Items != null)
+                        {
+                            foreach (var item in config.Items)
+                            {
+                                if (item.VideoCount < 1) item.VideoCount = 1;
+                                if (item.FixedSeconds < 1) item.FixedSeconds = 5;
+                            }
+                        }
+                        return config;
+                    }
                 }
             }
             catch { }
