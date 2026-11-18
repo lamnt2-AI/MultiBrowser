@@ -1,0 +1,23 @@
+{
+  "name": "multibrowser-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for MultiBrowser - Control multi-window browser, profiles, and playlist automations from AI agents",
+  "main": "index.js",
+  "bin": {
+    "multibrowser-mcp": "./index.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "multibrowser",
+    "automation",
+    "browser",
+    "agent"
+  ],
+  "author": "lamnt2-AI",
+  "license": "MIT"
+}

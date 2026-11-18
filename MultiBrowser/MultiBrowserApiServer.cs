@@ -1,0 +1,330 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows;
+
+namespace MultiBrowser
+{
+    public class MultiBrowserApiServer : IDisposable
+    {
+        private readonly MainWindow _mainWindow;
+        private HttpListener? _listener;
+        private bool _isRunning = false;
+        private int _port;
+
+        public int Port => _port;
+        public bool IsRunning => _isRunning;
+
+        public MultiBrowserApiServer(MainWindow mainWindow, int port = 5055)
+        {
+            _mainWindow = mainWindow;
+            _port = port;
+        }
+
+        public void Start()
+        {
+            if (_isRunning) return;
+
+            try
+            {
+                _listener = new HttpListener();
+                _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
+                _listener.Prefixes.Add($"http://localhost:{_port}/");
+                _listener.Start();
+                _isRunning = true;
+
+                Task.Run(ListenLoopAsync);
+            }
+            catch (Exception ex)
+            {
+                // Nếu cổng 5055 bị trùng, thử fallback sang 5056
+                try
+                {
+                    _port = 5056;
+                    _listener = new HttpListener();
+                    _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
+                    _listener.Prefixes.Add($"http://localhost:{_port}/");
+                    _listener.Start();
+                    _isRunning = true;
+                    Task.Run(ListenLoopAsync);
+                }
+                catch
+                {
+                    _isRunning = false;
+                }
+            }
+        }
+
+        private async Task ListenLoopAsync()
+        {
+            while (_isRunning && _listener != null && _listener.IsListening)
+            {
+                try
+                {
+                    var context = await _listener.GetContextAsync();
+                    _ = ProcessRequestAsync(context);
+                }
+                catch
+                {
+                    if (!_isRunning) break;
+                }
+            }
+        }
+
+        private async Task ProcessRequestAsync(HttpListenerContext context)
+        {
+            var req = context.Request;
+            var res = context.Response;
+
+            // CORS headers
+            res.AddHeader("Access-Control-Allow-Origin", "*");
+            res.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            res.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+            if (req.HttpMethod == "OPTIONS")
+            {
+                res.StatusCode = 204;
+                res.Close();
+                return;
+            }
+
+            string path = req.Url?.AbsolutePath.ToLowerInvariant().TrimEnd('/') ?? "";
+            string method = req.HttpMethod.ToUpperInvariant();
+
+            try
+            {
+                string requestBody = "";
+                if (req.HasEntityBody)
+                {
+                    using var reader = new StreamReader(req.InputStream, req.ContentEncoding);
+                    requestBody = await reader.ReadToEndAsync();
+                }
+
+                object responseData;
+
+                if (path == "/api/capabilities" || path == "/api/help")
+                {
+                    responseData = GetCapabilitiesInfo();
+                }
+                else if (path == "/api/status" && method == "GET")
+                {
+                    responseData = await _mainWindow.Dispatcher.InvokeAsync(() => _mainWindow.GetServerStatusSnapshot());
+                }
+                else if (path == "/api/set_window_count" && method == "POST")
+                {
+                    var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
+                    if (data != null && data.TryGetValue("count", out var countEl) && countEl.TryGetInt32(out int count))
+                    {
+                        await _mainWindow.Dispatcher.InvokeAsync(async () =>
+                        {
+                            await _mainWindow.SwitchWindowCountAsync(count);
+                        });
+                        responseData = new { success = true, message = $"Đã chuyển số lượng cửa sổ thành {count}." };
+                    }
+                    else
+                    {
+                        res.StatusCode = 400;
+                        responseData = new { success = false, error = "Tham số 'count' (2, 4, 6, 8) không hợp lệ." };
+                    }
+                }
+                else if (path == "/api/navigate" && method == "POST")
+                {
+                    var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
+                    string targetUrl = data != null && data.TryGetValue("url", out var urlEl) ? urlEl.GetString() ?? "" : "";
+                    if (!string.IsNullOrWhiteSpace(targetUrl))
+                    {
+                        await _mainWindow.Dispatcher.InvokeAsync(() =>
+                        {
+                            _mainWindow.NavigateAllFromApi(targetUrl);
+                        });
+                        responseData = new { success = true, message = $"Đã mở URL '{targetUrl}' trên các cửa sổ." };
+                    }
+                    else
+                    {
+                        res.StatusCode = 400;
+                        responseData = new { success = false, error = "Thiếu tham số 'url'." };
+                    }
+                }
+                else if (path == "/api/layout" && method == "POST")
+                {
+                    var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
+                    string action = data != null && data.TryGetValue("action", out var actionEl) ? actionEl.GetString() ?? "" : "";
+
+                    await _mainWindow.Dispatcher.InvokeAsync(() =>
+                    {
+                        _mainWindow.ExecuteLayoutActionFromApi(action);
+                    });
+                    responseData = new { success = true, message = $"Đã thực hiện thao tác bố cục: {action}." };
+                }
+                else if (path == "/api/mute" && method == "POST")
+                {
+                    var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
+                    bool mute = data != null && data.TryGetValue("mute", out var muteEl) && muteEl.GetBoolean();
+
+                    await _mainWindow.Dispatcher.InvokeAsync(() =>
+                    {
+                        _mainWindow.SetMuteFromApi(mute);
+                    });
+                    responseData = new { success = true, message = mute ? "Đã tắt âm thanh toàn bộ ứng dụng." : "Đã bật lại âm thanh." };
+                }
+                else if (path == "/api/playlist/start" && method == "POST")
+                {
+                    // Tự động nhận diện, sắp xếp và kích hoạt chạy trực tiếp trên app
+                    var playlistPayload = JsonSerializer.Deserialize<PlaylistApiRequest>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (playlistPayload != null && playlistPayload.Links != null && playlistPayload.Links.Any())
+                    {
+                        var createdItems = await _mainWindow.Dispatcher.InvokeAsync(async () =>
+                        {
+                            return await _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload);
+                        });
+                        responseData = new
+                        {
+                            success = true,
+                            message = $"Đã tự động phân tích và bắt đầu chạy kịch bản gồm {createdItems.Count} mục tiêu trên app!",
+                            items = createdItems
+                        };
+                    }
+                    else
+                    {
+                        res.StatusCode = 400;
+                        responseData = new { success = false, error = "Cần truyền danh sách 'links' dạng mảng URL." };
+                    }
+                }
+                else if (path == "/api/playlist/stop" && method == "POST")
+                {
+                    await _mainWindow.Dispatcher.InvokeAsync(() =>
+                    {
+                        _mainWindow.StopAutomationFromApi();
+                    });
+                    responseData = new { success = true, message = "Đã dừng tự động hóa trên app." };
+                }
+                else
+                {
+                    res.StatusCode = 404;
+                    responseData = new { success = false, error = "Không tìm thấy endpoint. Gọi /api/capabilities để xem danh sách lệnh." };
+                }
+
+                byte[] buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(responseData, new JsonSerializerOptions { WriteIndented = true }));
+                res.ContentType = "application/json; charset=utf-8";
+                res.ContentLength64 = buffer.Length;
+                await res.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+            }
+            catch (Exception ex)
+            {
+                res.StatusCode = 500;
+                byte[] errBuffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { success = false, error = ex.Message }));
+                res.ContentType = "application/json; charset=utf-8";
+                res.ContentLength64 = errBuffer.Length;
+                await res.OutputStream.WriteAsync(errBuffer, 0, errBuffer.Length);
+            }
+            finally
+            {
+                try { res.Close(); } catch { }
+            }
+        }
+
+        private object GetCapabilitiesInfo()
+        {
+            return new
+            {
+                appName = "MultiBrowser Automation Engine",
+                version = "2.0.0",
+                port = _port,
+                description = "Giao thức điều khiển MultiBrowser trực tiếp cho AI Agent / MCP Server. Cho phép bot quan sát, chuyển đổi 2/4/6/8 cửa sổ, điều hướng, tự động sắp xếp kịch bản và chạy trực tiếp trên giao diện người dùng.",
+                capabilities = new[]
+                {
+                    new
+                    {
+                        command = "get_capabilities",
+                        endpoint = "GET /api/capabilities",
+                        description = "Trả về toàn bộ danh mục tính năng, các lệnh điều khiển và hướng dẫn sử dụng cho Agent."
+                    },
+                    new
+                    {
+                        command = "get_status",
+                        endpoint = "GET /api/status",
+                        description = "Lấy trạng thái thời gian thực của app: số cửa sổ (2, 4, 6, 8), danh sách URL các tab, trạng thái automation, âm thanh..."
+                    },
+                    new
+                    {
+                        command = "set_window_count",
+                        endpoint = "POST /api/set_window_count",
+                        description = "Thiết lập số lượng cửa sổ hiển thị (2, 4, 6, hoặc 8 cửa sổ)",
+                        parameters = new { count = "2 | 4 | 6 | 8" }
+                    },
+                    new
+                    {
+                        command = "navigate_all",
+                        endpoint = "POST /api/navigate",
+                        description = "Điều hướng toàn bộ các cửa sổ active tới 1 URL chỉ định",
+                        parameters = new { url = "https://..." }
+                    },
+                    new
+                    {
+                        command = "layout_action",
+                        endpoint = "POST /api/layout",
+                        description = "Thực hiện thao tác điều khiển giao diện",
+                        parameters = new { action = "all_tab1 (YouTube) | all_tab2 (TikTok) | split_all (Chia đôi dọc) | reload_all" }
+                    },
+                    new
+                    {
+                        command = "set_mute",
+                        endpoint = "POST /api/mute",
+                        description = "Bật hoặc tắt âm thanh toàn bộ ứng dụng (Global Mute)",
+                        parameters = new { mute = "true | false" }
+                    },
+                    new
+                    {
+                        command = "auto_arrange_and_run_playlist",
+                        endpoint = "POST /api/playlist/start",
+                        description = "Nhận danh sách link từ Agent (Shorts, TikTok, YouTube dài, Facebook Reels...), tự động phân tích loại nền tảng, thiết lập chiến lược cuộn (đáy lên hoặc trên xuống), thời lượng xem và bắt đầu chạy trực tiếp trên app ngay lập tức.",
+                        parameters = new
+                        {
+                            links = new[] { "https://www.youtube.com/@channel/shorts", "https://www.tiktok.com/@user", "https://www.youtube.com/watch?v=..." },
+                            videoCountPerLink = "Số video xem mỗi link (mặc định: 5)",
+                            strategy = "TopToBottom | BottomToTop (hoặc để trống để bot tự chọn tối ưu)",
+                            durationMode = "FullVideoDuration (xem hết video) | FixedSeconds | RandomRange",
+                            loopContinuous = "true (lặp lại liên tục) | false",
+                            autoLike = "true | false"
+                        }
+                    },
+                    new
+                    {
+                        command = "stop_automation",
+                        endpoint = "POST /api/playlist/stop",
+                        description = "Dừng ngay lập tức toàn bộ quá trình tự động hóa đang thực thi trên app."
+                    }
+                }
+            };
+        }
+
+        public void Dispose()
+        {
+            _isRunning = false;
+            try
+            {
+                _listener?.Stop();
+                _listener?.Close();
+                _listener = null;
+            }
+            catch { }
+        }
+    }
+
+    public class PlaylistApiRequest
+    {
+        public List<string>? Links { get; set; }
+        public int VideoCountPerLink { get; set; } = 3;
+        public string? Strategy { get; set; }
+        public string? DurationMode { get; set; } = "FullVideoDuration";
+        public int FixedSeconds { get; set; } = 15;
+        public bool LoopContinuous { get; set; } = true;
+        public bool AutoLike { get; set; } = true;
+        public int DelayBetweenLinksSec { get; set; } = 3;
+    }
+}

@@ -22,6 +22,7 @@ namespace MultiBrowser
         private bool _isMuteAll = false;
         private int _currentWindowCount = 4;
         private BrowserPane[] _panes = Array.Empty<BrowserPane>();
+        private MultiBrowserApiServer? _apiServer;
 
         public MainWindow()
         {
@@ -33,6 +34,10 @@ namespace MultiBrowser
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _panes = new[] { Pane1, Pane2, Pane3, Pane4, Pane5, Pane6, Pane7, Pane8 };
+
+            // Khởi chạy Server điều khiển API cục bộ cho MCP Agent (Port 5055)
+            _apiServer = new MultiBrowserApiServer(this, 5055);
+            _apiServer.Start();
 
             // Tải cấu hình từ settings.json & playlist.json
             _settings = AppSettings.Load();
@@ -51,6 +56,7 @@ namespace MultiBrowser
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             StopAutoLoop();
+            _apiServer?.Dispose();
             foreach (var pane in _panes)
             {
                 pane.Dispose();
@@ -659,6 +665,124 @@ namespace MultiBrowser
             }
 
             TxtAutoStatus.Text = $"✅ Hoàn tất kịch bản! Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
+        }
+
+        // ================= API & MCP SERVER INTEGRATION HOOKS =================
+
+        public object GetServerStatusSnapshot()
+        {
+            return new
+            {
+                isRunning = true,
+                windowCount = _currentWindowCount,
+                isMuteAll = _isMuteAll,
+                statusText = TxtAutoStatus.Text,
+                isAutomationRunning = _autoLoopCts != null,
+                panes = _panes.Select(p => new
+                {
+                    profileId = p.ProfileId,
+                    isReady = p.IsBrowserReady,
+                    visibility = p.Visibility.ToString(),
+                    url = p.IsBrowserReady ? p.ActiveBrowser.Source?.ToString() : null
+                }).ToArray()
+            };
+        }
+
+        public void NavigateAllFromApi(string url)
+        {
+            TxtGlobalUrl.Text = url;
+            SyncNavigate(url);
+        }
+
+        public void ExecuteLayoutActionFromApi(string action)
+        {
+            switch (action.ToLowerInvariant())
+            {
+                case "all_tab1":
+                    BtnAllTab1_Click(this, new RoutedEventArgs());
+                    break;
+                case "all_tab2":
+                    BtnAllTab2_Click(this, new RoutedEventArgs());
+                    break;
+                case "split_all":
+                    BtnAllSplitTab_Click(this, new RoutedEventArgs());
+                    break;
+                case "reload_all":
+                    BtnReloadAll_Click(this, new RoutedEventArgs());
+                    break;
+            }
+        }
+
+        public void SetMuteFromApi(bool mute)
+        {
+            BtnMuteAll.IsChecked = mute;
+            BtnToggleMuteAll_Click(this, new RoutedEventArgs());
+        }
+
+        public async Task<List<PlaylistItem>> AutoArrangeAndRunPlaylistFromApiAsync(PlaylistApiRequest request)
+        {
+            StopAutoLoop();
+
+            var newItems = new List<PlaylistItem>();
+            if (request.Links != null)
+            {
+                foreach (var link in request.Links)
+                {
+                    if (string.IsNullOrWhiteSpace(link)) continue;
+                    var (platform, title, defaultCount) = PlatformDetector.Detect(link);
+
+                    ScrollStrategy strategy;
+                    if (!string.IsNullOrWhiteSpace(request.Strategy) && 
+                        Enum.TryParse<ScrollStrategy>(request.Strategy, true, out var customStrategy))
+                    {
+                        strategy = customStrategy;
+                    }
+                    else
+                    {
+                        strategy = (platform == PlatformType.YouTubeShorts) 
+                            ? ScrollStrategy.BottomToTop 
+                            : ScrollStrategy.TopToBottom;
+                    }
+
+                    WatchDurationMode durationMode = WatchDurationMode.FullVideoDuration;
+                    if (!string.IsNullOrWhiteSpace(request.DurationMode) && 
+                        Enum.TryParse<WatchDurationMode>(request.DurationMode, true, out var parsedMode))
+                    {
+                        durationMode = parsedMode;
+                    }
+
+                    int count = (platform == PlatformType.YouTubeLong || platform == PlatformType.FacebookVideo)
+                        ? 1
+                        : request.VideoCountPerLink;
+
+                    newItems.Add(new PlaylistItem
+                    {
+                        Url = link.Trim(),
+                        Title = title,
+                        Platform = platform,
+                        Strategy = strategy,
+                        DurationMode = durationMode,
+                        FixedSeconds = request.FixedSeconds,
+                        VideoCount = count,
+                        AutoLike = request.AutoLike
+                    });
+                }
+            }
+
+            _playlistConfig.Items = newItems;
+            _playlistConfig.LoopContinuous = request.LoopContinuous;
+            _playlistConfig.DelayBetweenLinksSec = request.DelayBetweenLinksSec;
+            _playlistConfig.Save();
+
+            // Khởi chạy ngay lập tức trên app
+            await StartPlaylistExecutionAsync();
+
+            return newItems;
+        }
+
+        public void StopAutomationFromApi()
+        {
+            StopAutoLoop();
         }
     }
 }
