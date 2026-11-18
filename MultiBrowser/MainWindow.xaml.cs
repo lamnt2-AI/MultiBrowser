@@ -431,7 +431,7 @@ namespace MultiBrowser
                 while (!token.IsCancellationRequested)
                 {
                     // Lấy động danh sách các ô đang hiển thị (thích ứng ngay nếu đổi layout)
-                    var activePanes = GetActivePanes().ToList();
+                    activePanes = GetActivePanes().ToList();
                     if (!activePanes.Any()) break;
 
                     // 1. Kiểm tra và thả tym đồng loạt trên các ô đang hiển thị

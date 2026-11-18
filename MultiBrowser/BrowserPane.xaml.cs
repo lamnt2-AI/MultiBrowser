@@ -107,6 +107,13 @@ namespace MultiBrowser
             {
                 TxtInitStatus.Text = $"Lỗi khởi tạo: {ex.Message}";
             }
+            finally
+            {
+                if (!_isInitialized)
+                {
+                    _initTask = null;
+                }
+            }
         }
 
         private async Task InitSingleWebView(Microsoft.Web.WebView2.Wpf.WebView2 webView, int tabIndex, string proxyUser, string proxyPass, string initialUrl)
