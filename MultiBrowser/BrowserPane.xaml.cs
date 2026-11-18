@@ -468,13 +468,13 @@ namespace MultiBrowser
 
         public async Task<bool> EnsureShortsPlayerOpenAsync()
         {
-            if (!_isInitialized || BrowserControl1.CoreWebView2 == null) return false;
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
 
             string script = @"
             (function() {
                 if (window.location.pathname.includes('/shorts/')) return 'IN_PLAYER';
 
-                let shortLink = document.querySelector('ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], a[href*=""/shorts/""]');
+                let shortLink = document.querySelector('ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], a#thumbnail[href*=""/shorts/""], a[href*=""/shorts/""]');
                 if (shortLink) {
                     shortLink.click();
                     return 'CLICKED';
@@ -490,7 +490,7 @@ namespace MultiBrowser
 
             try
             {
-                var res = await BrowserControl1.CoreWebView2.ExecuteScriptAsync(script);
+                var res = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
                 return res != null && !res.Contains("NOT_FOUND");
             }
             catch { return false; }
@@ -498,7 +498,7 @@ namespace MultiBrowser
 
         public async Task<string> CheckAndLikeShortAsync()
         {
-            if (!_isInitialized || BrowserControl1.CoreWebView2 == null) return "NOT_INITIALIZED";
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
 
             // Selector không phụ thuộc ngôn ngữ: kiểm tra attribute aria-pressed trên nút like chuẩn
             string script = @"
@@ -520,15 +520,15 @@ namespace MultiBrowser
 
             try
             {
-                var rawResult = await BrowserControl1.CoreWebView2.ExecuteScriptAsync(script);
+                var rawResult = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
                 string result = rawResult?.Trim('"') ?? "NO_RESULT";
                 if (result == "LIKED_SUCCESS")
                 {
-                    TxtStatus.Text = "[Tab 1] ❤️ Đã thả tym video Short!";
+                    TxtStatus.Text = $"[{TxtActiveTabIndicator.Text}] ❤️ Đã thả tym video Short!";
                 }
                 else if (result == "ALREADY_LIKED")
                 {
-                    TxtStatus.Text = "[Tab 1] ✓ Video Short đã được tym trước đó.";
+                    TxtStatus.Text = $"[{TxtActiveTabIndicator.Text}] ✓ Video Short đã được tym trước đó.";
                 }
                 return result;
             }
@@ -540,7 +540,7 @@ namespace MultiBrowser
 
         public async Task<string> ScrollShortAsync(string direction)
         {
-            if (!_isInitialized || BrowserControl1.CoreWebView2 == null) return "NOT_INITIALIZED";
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
 
             bool isUp = direction.ToLower().Contains("up") || direction.ToLower().Contains("lên");
             string script = $@"
@@ -558,7 +558,7 @@ namespace MultiBrowser
 
             try
             {
-                var raw = await BrowserControl1.CoreWebView2.ExecuteScriptAsync(script);
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
                 return raw?.Trim('"') ?? "OK";
             }
             catch (Exception ex)
@@ -841,34 +841,128 @@ namespace MultiBrowser
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
 
             bool isUp = direction.ToLower().Contains("up") || direction.ToLower().Contains("lên");
+            int vKeyCode = isUp ? 38 : 40;
+            string keyName = isUp ? "ArrowUp" : "ArrowDown";
+
             string script = $@"
             (function() {{
                 let isUp = {(isUp ? "true" : "false")};
+
+                // 1. Tự động đóng modal / dialog chặn màn hình nếu có (như popup đăng nhập TikTok)
+                try {{
+                    let closeBtn = document.querySelector('[data-e2e=""modal-close-inner-button""], button[aria-label=""Close""], button[aria-label=""Đóng""], button.tiktok-modal-close');
+                    if (closeBtn) closeBtn.click();
+                }} catch(e) {{}}
+
+                // Focus vào window và video player
+                try {{
+                    window.focus();
+                    let vid = document.querySelector('video');
+                    if (vid) vid.focus();
+                }} catch(e) {{}}
                 
-                // 1. YouTube Shorts Nav Buttons
-                let navBtn = document.querySelector(isUp ? '#navigation-button-up button' : '#navigation-button-down button');
-                if (navBtn) {{
-                    navBtn.click();
-                    return 'BTN_CLICKED';
+                // 2. YouTube Shorts Nav Buttons
+                let ytBtn = document.querySelector(isUp ? '#navigation-button-up button' : '#navigation-button-down button');
+                if (ytBtn && ytBtn.offsetParent !== null) {{
+                    ytBtn.click();
+                    return 'CLICKED_YT_BUTTON';
                 }}
 
-                // 2. Dispatch phím mũi tên chuẩn
+                // 3. TikTok Desktop Nav Buttons (Next / Prev)
+                let ttSelector = isUp 
+                    ? 'button[data-e2e=""arrow-left""], button[data-e2e=""arrow-up""], button[data-e2e=""nav-arrow-up""]' 
+                    : 'button[data-e2e=""arrow-right""], button[data-e2e=""arrow-down""], button[data-e2e=""nav-arrow-down""]';
+                let ttBtn = document.querySelector(ttSelector);
+                if (ttBtn && ttBtn.offsetParent !== null) {{
+                    ttBtn.click();
+                    return 'CLICKED_TIKTOK_BUTTON';
+                }}
+
+                // TikTok selector mở rộng theo aria-label hoặc attribute
+                let allButtons = Array.from(document.querySelectorAll('button, div[role=""button""]'));
+                let foundBtn = allButtons.find(b => {{
+                    let e2e = (b.getAttribute('data-e2e') || '').toLowerCase();
+                    let label = (b.getAttribute('aria-label') || '').toLowerCase();
+                    if (isUp) {{
+                        return (e2e.includes('prev') || e2e.includes('up') || label.includes('prev') || label.includes('trước'));
+                    }} else {{
+                        return (e2e.includes('next') || e2e.includes('down') || e2e.includes('right') || label.includes('next') || label.includes('tiếp') || label.includes('sau'));
+                    }}
+                }});
+                if (foundBtn && foundBtn.offsetParent !== null) {{
+                    foundBtn.click();
+                    return 'CLICKED_ARIA_BUTTON';
+                }}
+
+                // 4. Instagram Reels Nav Buttons
+                let igBtn = document.querySelector(isUp ? 'button[aria-label*=""Previous"" i], button[aria-label*=""Trước"" i]' : 'button[aria-label*=""Next"" i], button[aria-label*=""Tiếp"" i]');
+                if (igBtn && igBtn.offsetParent !== null) {{
+                    igBtn.click();
+                    return 'CLICKED_IG_BUTTON';
+                }}
+
+                // 5. Facebook Reels Nav Buttons
+                let fbBtn = document.querySelector(isUp ? 'div[aria-label*=""trước"" i]' : 'div[aria-label*=""tiếp"" i], div[aria-label*=""Next"" i]');
+                if (fbBtn && fbBtn.offsetParent !== null) {{
+                    fbBtn.click();
+                    return 'CLICKED_FB_BUTTON';
+                }}
+
+                // 6. TikTok Fallback nếu đang ở trong trang video: Click link video kế tiếp
+                if (window.location.pathname.includes('/video/')) {{
+                    let curUrl = window.location.href;
+                    let allVidLinks = Array.from(document.querySelectorAll('a[href*=""/video/""]'));
+                    let nextLink = allVidLinks.find(a => a.href && a.href !== curUrl && !a.href.includes(window.location.pathname));
+                    if (nextLink) {{
+                        nextLink.click();
+                        return 'CLICKED_NEXT_VIDEO_LINK';
+                    }}
+                }}
+
+                // 7. Thử dispatch Wheel Event (cuộn bánh xe chuột để lướt video)
+                try {{
+                    let wheelDelta = isUp ? -600 : 600;
+                    let wheelEvt = new WheelEvent('wheel', {{ deltaY: wheelDelta, bubbles: true, cancelable: true }});
+                    let targetEl = document.querySelector('video') || document.body || window;
+                    targetEl.dispatchEvent(wheelEvt);
+                }} catch(e) {{}}
+
+                // 8. JS KeyboardEvent fallback
                 let key = isUp ? 'ArrowUp' : 'ArrowDown';
                 let code = isUp ? 38 : 40;
-                let eventDown = new KeyboardEvent('keydown', {{ key: key, keyCode: code, which: code, code: key, bubbles: true }});
-                let eventUp = new KeyboardEvent('keyup', {{ key: key, keyCode: code, which: code, code: key, bubbles: true }});
+                let eventDown = new KeyboardEvent('keydown', {{ key: key, keyCode: code, which: code, code: key, bubbles: true, cancelable: true }});
+                let eventUp = new KeyboardEvent('keyup', {{ key: key, keyCode: code, which: code, code: key, bubbles: true, cancelable: true }});
+                window.dispatchEvent(eventDown);
                 document.dispatchEvent(eventDown);
+                window.dispatchEvent(eventUp);
                 document.dispatchEvent(eventUp);
 
-                // 3. Cuộn mượt fallback
-                window.scrollBy({{ top: isUp ? -window.innerHeight * 0.8 : window.innerHeight * 0.8, behavior: 'smooth' }});
-                return 'KEY_SENT';
+                return 'ATTEMPTED_FALLBACK';
             }})();";
 
             try
             {
                 var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
-                return raw?.Trim('"') ?? "OK";
+                string jsResult = raw?.Trim('"') ?? "OK";
+
+                // Gửi sự kiện phần cứng mức nhân Chromium CDP (DevTools Protocol)
+                // Đảm bảo tạo ra sự kiện isTrusted: true để vượt qua bộ lọc của React/TikTok/YouTube
+                try
+                {
+                    string keyDownPayload = $"{{\"type\":\"rawKeyDown\",\"windowsVirtualKeyCode\":{vKeyCode},\"nativeVirtualKeyCode\":{vKeyCode},\"key\":\"{keyName}\",\"code\":\"{keyName}\"}}";
+                    string keyUpPayload = $"{{\"type\":\"keyUp\",\"windowsVirtualKeyCode\":{vKeyCode},\"nativeVirtualKeyCode\":{vKeyCode},\"key\":\"{keyName}\",\"code\":\"{keyName}\"}}";
+
+                    await ActiveBrowser.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", keyDownPayload);
+                    await Task.Delay(50);
+                    await ActiveBrowser.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", keyUpPayload);
+
+                    // Đồng thời gửi CDP mouseWheel
+                    string wheelPayload = $"{{\"type\":\"mouseWheel\",\"x\":300,\"y\":300,\"deltaX\":0,\"deltaY\":{(isUp ? -600 : 600)}}}";
+                    await ActiveBrowser.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", wheelPayload);
+                }
+                catch { }
+
+                return jsResult;
             }
             catch (Exception ex)
             {
@@ -997,8 +1091,14 @@ namespace MultiBrowser
             {
                 string script = @"
                 (function() {
+                    // Tự động đóng modal chặn nếu có
+                    try {
+                        let closeBtn = document.querySelector('[data-e2e=""modal-close-inner-button""], button[aria-label=""Close""], button[aria-label=""Đóng""], button.tiktok-modal-close');
+                        if (closeBtn) closeBtn.click();
+                    } catch(e) {}
+
                     if (window.location.pathname.includes('/video/')) return 'IN_PLAYER';
-                    let firstVideo = document.querySelector('[data-e2e=""user-post-item""] a, div[data-e2e=""recommend-list-item-container""] a');
+                    let firstVideo = document.querySelector('[data-e2e=""user-post-item""] a, div[data-e2e=""recommend-list-item-container""] a, a[href*=""/video/""]');
                     if (firstVideo) {
                         firstVideo.click();
                         return 'CLICKED';

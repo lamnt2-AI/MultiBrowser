@@ -810,12 +810,10 @@ namespace MultiBrowser
                     }
                     else
                     {
-                        strategy = (platform == PlatformType.YouTubeShorts) 
-                            ? ScrollStrategy.BottomToTop 
-                            : ScrollStrategy.TopToBottom;
+                        strategy = ScrollStrategy.TopToBottom;
                     }
 
-                    WatchDurationMode durationMode = WatchDurationMode.FullVideoDuration;
+                    WatchDurationMode durationMode = WatchDurationMode.FixedSeconds;
                     if (!string.IsNullOrWhiteSpace(request.DurationMode) && 
                         Enum.TryParse<WatchDurationMode>(request.DurationMode, true, out var parsedMode))
                     {

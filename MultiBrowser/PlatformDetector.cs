@@ -11,8 +11,8 @@ namespace MultiBrowser
 
             string lower = url.Trim().ToLowerInvariant();
 
-            // 1. YouTube Shorts
-            if (lower.Contains("youtube.com/shorts") || lower.Contains("/shorts/"))
+            // 1. YouTube Shorts (bao gồm: kênh /shorts, /shorts/, và video shorts)
+            if ((lower.Contains("youtube.com") || lower.Contains("youtu.be")) && lower.Contains("/shorts"))
             {
                 return (PlatformType.YouTubeShorts, "YouTube Shorts", 5);
             }
