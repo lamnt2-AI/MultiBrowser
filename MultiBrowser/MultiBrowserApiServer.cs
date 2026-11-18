@@ -431,7 +431,7 @@ namespace MultiBrowser
         public List<string>? Links { get; set; }
         public int VideoCountPerLink { get; set; } = 3;
         public string? Strategy { get; set; }
-        public string? DurationMode { get; set; } = "FixedSeconds";
+        public string? DurationMode { get; set; } = "FullVideoDuration";
         public int FixedSeconds { get; set; } = 15;
         public bool LoopContinuous { get; set; } = true;
         public bool AutoLike { get; set; } = true;

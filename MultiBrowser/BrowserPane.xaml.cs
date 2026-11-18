@@ -919,6 +919,20 @@ namespace MultiBrowser
                     }}
                 }}
 
+                // 7. YouTube Video Dài: Click nút Next hoặc video gợi ý kế tiếp
+                if (window.location.pathname.includes('/watch')) {{
+                    let ytNextBtn = document.querySelector('.ytp-next-button');
+                    if (ytNextBtn && ytNextBtn.offsetParent !== null) {{
+                        ytNextBtn.click();
+                        return 'CLICKED_YT_NEXT';
+                    }}
+                    let recVid = document.querySelector('#related ytd-compact-video-renderer a#video-title-link, #related a[href*=""/watch?v=""]');
+                    if (recVid) {{
+                        recVid.click();
+                        return 'CLICKED_REC_VIDEO';
+                    }}
+                }}
+
                 // 7. Thử dispatch Wheel Event (cuộn bánh xe chuột để lướt video)
                 try {{
                     let wheelDelta = isUp ? -600 : 600;

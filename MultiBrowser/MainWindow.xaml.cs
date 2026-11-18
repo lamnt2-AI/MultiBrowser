@@ -655,26 +655,60 @@ namespace MultiBrowser
                         // Thời lượng xem
                         if (step.DurationMode == WatchDurationMode.FullVideoDuration)
                         {
-                            double detectedDuration = 0;
-                            try
+                            double targetDuration = 0;
+                            int elapsedSec = 0;
+                            const int maxWaitSec = 86400; // Hỗ trợ cả video dài nhiều giờ
+
+                            // Vòng lặp theo dõi tiến trình thực tế của video theo thời gian thực
+                            while (!token.IsCancellationRequested && elapsedSec < maxWaitSec)
                             {
-                                var state = await activePanes[0].GetVideoPlaybackStateAsync();
-                                if (state.Found && state.Duration > 0)
+                                VideoPlaybackState? state = null;
+                                try
                                 {
-                                    detectedDuration = state.Duration;
+                                    state = await activePanes[0].GetVideoPlaybackStateAsync();
                                 }
-                            }
-                            catch { }
+                                catch { }
 
-                            int watchSeconds = (detectedDuration > 0 && detectedDuration < 3600)
-                                ? (int)Math.Ceiling(detectedDuration)
-                                : step.FixedSeconds;
+                                if (state != null && state.Found)
+                                {
+                                    if (state.Duration > 0)
+                                    {
+                                        targetDuration = state.Duration;
+                                    }
 
-                            for (int s = watchSeconds; s > 0; s--)
-                            {
-                                token.ThrowIfCancellationRequested();
-                                int elapsed = watchSeconds - s;
-                                TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang xem ({elapsed}s/{watchSeconds}s) | Đã thả {_totalLikedCount} ❤️";
+                                    // Nếu video đã phát xong (ended) hoặc currentTime đã tới cuối video
+                                    if (state.Ended || (targetDuration > 0 && state.CurrentTime >= targetDuration - 0.5 && elapsedSec > 2))
+                                    {
+                                        TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đã xem hết video ({FormatTime(targetDuration)}) | Đã thả {_totalLikedCount} ❤️";
+                                        break;
+                                    }
+                                }
+
+                                elapsedSec++;
+
+                                if (targetDuration > 0)
+                                {
+                                    double curTime = (state != null && state.CurrentTime > 0) ? state.CurrentTime : elapsedSec;
+                                    string curStr = FormatTime(curTime);
+                                    string durStr = FormatTime(targetDuration);
+                                    TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang phát ({curStr} / {durStr}) | Đã thả {_totalLikedCount} ❤️";
+
+                                    if (elapsedSec >= Math.Ceiling(targetDuration) + 1)
+                                    {
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    // Trong vài giây đầu đợi nạp video, nếu sau 6s vẫn không có thẻ video thì dùng FixedSeconds fallback
+                                    int fallbackSec = step.FixedSeconds > 0 ? step.FixedSeconds : 15;
+                                    TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang tải video ({elapsedSec}s/{fallbackSec}s)... | Đã thả {_totalLikedCount} ❤️";
+                                    if (elapsedSec >= fallbackSec)
+                                    {
+                                        break;
+                                    }
+                                }
+
                                 await Task.Delay(1000, token);
                             }
                         }
@@ -813,7 +847,7 @@ namespace MultiBrowser
                         strategy = ScrollStrategy.TopToBottom;
                     }
 
-                    WatchDurationMode durationMode = WatchDurationMode.FixedSeconds;
+                    WatchDurationMode durationMode = WatchDurationMode.FullVideoDuration;
                     if (!string.IsNullOrWhiteSpace(request.DurationMode) && 
                         Enum.TryParse<WatchDurationMode>(request.DurationMode, true, out var parsedMode))
                     {
@@ -861,6 +895,15 @@ namespace MultiBrowser
         public void StopAutomationFromApi()
         {
             StopAutoLoop();
+        }
+
+        private static string FormatTime(double totalSeconds)
+        {
+            if (double.IsNaN(totalSeconds) || double.IsInfinity(totalSeconds) || totalSeconds < 0) return "00:00";
+            var ts = TimeSpan.FromSeconds(totalSeconds);
+            return ts.TotalHours >= 1 
+                ? ts.ToString(@"hh\:mm\:ss") 
+                : ts.ToString(@"mm\:ss");
         }
     }
 }
