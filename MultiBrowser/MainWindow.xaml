@@ -1,0 +1,201 @@
+﻿<Window x:Class="MultiBrowser.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:MultiBrowser"
+        mc:Ignorable="d"
+        Title="Multi-Account Grid Browser - Multi Google Login" Height="900" Width="1400"
+        WindowStartupLocation="CenterScreen" Background="#121214">
+
+    <Window.Resources>
+        <!-- Style for modern Layout Radio buttons -->
+        <Style x:Key="LayoutRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#A1A1AA"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3B82F6"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3F3F46"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="border" Property="Background" Value="#2563EB"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Global Control Bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- Automation Toolbar -->
+            <RowDefinition Height="Auto"/>
+            <!-- Content Grid with Browser Panes -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Global Toolbar -->
+        <Border Grid.Row="0" Background="#18181B" BorderBrush="#27272A" BorderThickness="0,0,0,1" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- App Logo & Title -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Layout Switches -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Global URL Syncer -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Quick Global Actions -->
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- App Brand -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                    <TextBlock Text="🌐" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <StackPanel>
+                        <TextBlock Text="MULTI BROWSER" FontWeight="Bold" FontSize="13" Foreground="White"/>
+                        <TextBlock Text="Đăng nhập nhiều Acc Google" FontSize="10" Foreground="#A1A1AA"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Layout Selector -->
+                <Border Grid.Column="1" Background="#27272A" CornerRadius="6" Padding="2" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="RbLayout4Grid" Content="4 Ô (2x2)" IsChecked="True" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout3Focus" Content="3 Ô (1 Lớn + 2 Nhỏ)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout3H" Content="3 Ô (1x3)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout2H" Content="2 Ô (1x2)" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                        <RadioButton x:Name="RbLayout1" Content="1 Ô" Style="{StaticResource LayoutRadioStyle}" Click="LayoutChanged"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Global Sync URL Bar -->
+                <Grid Grid.Column="2" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="TxtGlobalUrl" Background="#27272A" Foreground="#FAFAFA" BorderBrush="#3F3F46" 
+                             VerticalContentAlignment="Center" Padding="10,6" FontSize="12" KeyDown="TxtGlobalUrl_KeyDown"
+                             Text="https://accounts.google.com"/>
+                    <Button Grid.Column="1" Content="Mở tất cả ➔" Click="BtnSyncUrl_Click"
+                            Padding="12,6" Margin="4,0,0,0" Background="#3B82F6" Foreground="White" BorderThickness="0" 
+                            FontWeight="SemiBold" Cursor="Hand"/>
+                </Grid>
+
+                <!-- Global Action Buttons -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="🔴 Tất cả Tab 1" ToolTip="Chuyển tất cả các ô sang Tab 1 (YouTube)" Click="BtnAllTab1_Click"
+                            Padding="8,5" Margin="2,0" Background="#1E3A8A" Foreground="White" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    <Button Content="🎵 Tất cả Tab 2" ToolTip="Chuyển tất cả các ô sang Tab 2 (TikTok)" Click="BtnAllTab2_Click"
+                            Padding="8,5" Margin="2,0" Background="#831843" Foreground="White" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    <Button Content="🪟 Chia Dọc Tất Cả" ToolTip="Chia đôi tất cả các ô theo chiều dọc (Bên trái YouTube, Bên phải TikTok)" Click="BtnAllSplitTab_Click"
+                            Padding="8,5" Margin="2,0" Background="#4C1D95" Foreground="White" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    
+                    <Separator Width="1" Background="#3F3F46" Margin="6,2"/>
+
+                    <Button Content="🔑 Login Google" ToolTip="Mở trang đăng nhập Google trên tất cả các ô" Click="BtnGoogleAll_Click"
+                            Padding="8,5" Margin="2,0" Background="#1D4ED8" Foreground="White" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    <Button Content="🔄 Reload tất cả" ToolTip="Tải lại trang trên tất cả các ô" Click="BtnReloadAll_Click"
+                            Padding="8,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    <Button Content="📁 Profiles" ToolTip="Mở thư mục lưu trữ các Profile tài khoản" Click="BtnOpenProfilesFolder_Click"
+                            Padding="8,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
+                            FontWeight="Medium" FontSize="11" Cursor="Hand"/>
+                    
+                    <!-- Mute All Toggle Button -->
+                    <ToggleButton x:Name="BtnMuteAll" Content="🔊 Âm thanh: BẬT" ToolTip="Bật / Tắt toàn bộ âm thanh trên tất cả các ô trong ứng dụng" Click="BtnToggleMuteAll_Click"
+                                  Padding="10,5" Margin="4,0,2,0" Background="#1F2937" Foreground="#10B981" BorderBrush="#374151" BorderThickness="1" 
+                                  FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Automation Sub-Toolbar -->
+        <Border Grid.Row="1" Background="#141418" BorderBrush="#27272A" BorderThickness="0,0,0,1" Padding="12,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⚡ TỰ ĐỘNG HÓA YOUTUBE:" Foreground="#FBBF24" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                    <Button Content="🎬 Mở &amp; Cuộn hết Shorts" ToolTip="Tự động mở tab Shorts và cuộn load toàn bộ video Short xuống đáy"
+                            Click="BtnAutoShorts_Click"
+                            Padding="8,4" Margin="2,0" Background="#7C3AED" Foreground="White" BorderThickness="0" 
+                            FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
+
+                    <Separator Width="1" Background="#3F3F46" Margin="6,2"/>
+
+                    <!-- Settings: Delay Seconds -->
+                    <TextBlock Text="Xem:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="TxtIntervalSec" Text="8" Width="30" Height="22" VerticalContentAlignment="Center" 
+                             HorizontalContentAlignment="Center" Background="#27272A" Foreground="#F9FAFB" BorderBrush="#4B5563" FontSize="11"/>
+                    <TextBlock Text="giây" Foreground="#9CA3AF" FontSize="11" VerticalAlignment="Center" Margin="3,0,6,0"/>
+
+                    <!-- Settings: Direction -->
+                    <TextBlock Text="Lướt:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center" Margin="2,0"/>
+                    <ComboBox x:Name="CmbDirection" SelectedIndex="0" Width="95" Height="22" FontSize="11" Background="#27272A" Foreground="Black">
+                        <ComboBoxItem Content="⬇️ Xuống (Next)"/>
+                        <ComboBoxItem Content="⬆️ Lên (Prev)"/>
+                    </ComboBox>
+
+                    <!-- Auto-Like Checkbox -->
+                    <CheckBox x:Name="ChkAutoLike" Content="❤️ Tự động Tym nếu chưa có" IsChecked="True" 
+                              Foreground="#F472B6" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="8,0,6,0" Cursor="Hand"/>
+
+                    <!-- Start & Stop Automation -->
+                    <Button x:Name="BtnStartAutoWatch" Content="▶ BẮT ĐẦU AUTO" ToolTip="Tự động kiểm tra tym, chờ X giây rồi lướt sang video tiếp theo"
+                            Click="BtnStartAutoWatch_Click"
+                            Padding="10,4" Margin="3,0" Background="#DB2777" Foreground="White" BorderThickness="0" 
+                            FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+
+                    <Button Content="⏹ Dừng" ToolTip="Dừng toàn bộ quá trình tự động lướt &amp; tym"
+                            Click="BtnStopAuto_Click"
+                            Padding="8,4" Margin="3,0" Background="#DC2626" Foreground="White" BorderThickness="0" 
+                            FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
+                </StackPanel>
+
+                <!-- Status Text -->
+                <TextBlock x:Name="TxtAutoStatus" Grid.Column="1" Text="Sẵn sàng thực thi lệnh tự động" Foreground="#9CA3AF" FontSize="11" 
+                           VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Display Container for 4 Browsers -->
+        <Grid x:Name="BrowserContainer" Grid.Row="2" Margin="2">
+            <!-- Rows and Columns will be managed dynamically based on selected layout -->
+            <local:BrowserPane x:Name="Pane1" Margin="2"/>
+            <local:BrowserPane x:Name="Pane2" Margin="2"/>
+            <local:BrowserPane x:Name="Pane3" Margin="2"/>
+            <local:BrowserPane x:Name="Pane4" Margin="2"/>
+        </Grid>
+    </Grid>
+</Window>

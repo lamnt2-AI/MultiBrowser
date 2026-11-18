@@ -1,0 +1,26 @@
+## Build and output directories
+bin/
+obj/
+out/
+publish/
+
+## Visual Studio & IDE files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Critical Security: Ignore all local user profiles, cookies & credentials
+Profiles/
+**/Profiles/
+proxy.txt
+**/proxy.txt
+*.log
+
+## OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
