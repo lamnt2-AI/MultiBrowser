@@ -25,6 +25,8 @@ namespace MultiBrowser
         public Microsoft.Web.WebView2.Wpf.WebView2 ActiveBrowser => 
             (_activeTab == 2) ? BrowserControl2 : BrowserControl1;
 
+        public string CurrentUrl => ActiveBrowser.Source?.ToString() ?? "";
+
         public Microsoft.Web.WebView2.Wpf.WebView2 YouTubeBrowser => BrowserControl1;
         public Microsoft.Web.WebView2.Wpf.WebView2 TikTokBrowser => BrowserControl2;
 
@@ -1049,6 +1051,20 @@ namespace MultiBrowser
         }
 
         public async Task<bool> EnsurePlayerStartedAsync(PlatformType platform)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
+
+            // Thử lặp lại tối đa 8 lần (mỗi lần 1s) để đợi trang web nạp DOM video
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                bool started = await TryStartPlayerInternalAsync(platform);
+                if (started) return true;
+                await Task.Delay(1000);
+            }
+            return false;
+        }
+
+        private async Task<bool> TryStartPlayerInternalAsync(PlatformType platform)
         {
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
 

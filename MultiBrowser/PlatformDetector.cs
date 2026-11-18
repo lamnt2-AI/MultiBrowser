@@ -14,7 +14,7 @@ namespace MultiBrowser
             // 1. YouTube Shorts (bao gồm: kênh /shorts, /shorts/, và video shorts)
             if ((lower.Contains("youtube.com") || lower.Contains("youtu.be")) && lower.Contains("/shorts"))
             {
-                return (PlatformType.YouTubeShorts, "YouTube Shorts", 5);
+                return (PlatformType.YouTubeShorts, "YouTube Shorts", 50);
             }
 
             // 2. YouTube Long Video / Channel Video
@@ -22,13 +22,13 @@ namespace MultiBrowser
                 lower.Contains("youtube.com/live/") || (lower.Contains("youtube.com/") && !lower.Contains("/shorts")))
             {
                 bool isSpecificVideo = lower.Contains("watch?v=") || lower.Contains("youtu.be/");
-                return (PlatformType.YouTubeLong, isSpecificVideo ? "YouTube Video Dài (Master)" : "Kênh YouTube", isSpecificVideo ? 1 : 3);
+                return (PlatformType.YouTubeLong, isSpecificVideo ? "YouTube Video Dài (Master)" : "Kênh YouTube", isSpecificVideo ? 1 : 50);
             }
 
             // 3. TikTok
             if (lower.Contains("tiktok.com"))
             {
-                return (PlatformType.TikTok, "TikTok Video / Kênh", 5);
+                return (PlatformType.TikTok, "TikTok Video / Kênh", 50);
             }
 
             // 4. Facebook Reels

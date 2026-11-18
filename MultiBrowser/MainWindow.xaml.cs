@@ -676,8 +676,9 @@ namespace MultiBrowser
                                         targetDuration = state.Duration;
                                     }
 
-                                    // Nếu video đã phát xong (ended) hoặc currentTime đã tới cuối video
-                                    if (state.Ended || (targetDuration > 0 && state.CurrentTime >= targetDuration - 0.5 && elapsedSec > 2))
+                                    // Chỉ coi video đã phát xong khi đã xem ít nhất 3s VÀ (state.Ended hoặc currentTime đã tới gần cuối video)
+                                    bool isFinished = elapsedSec >= 3 && (state.Ended || (targetDuration > 0 && state.CurrentTime >= targetDuration - 0.5));
+                                    if (isFinished)
                                     {
                                         TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đã xem hết video ({FormatTime(targetDuration)}) | Đã thả {_totalLikedCount} ❤️";
                                         break;
@@ -693,16 +694,17 @@ namespace MultiBrowser
                                     string durStr = FormatTime(targetDuration);
                                     TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang phát ({curStr} / {durStr}) | Đã thả {_totalLikedCount} ❤️";
 
-                                    if (elapsedSec >= Math.Ceiling(targetDuration) + 1)
+                                    // Nếu đã phát vượt quá tổng thời lượng + 2 giây thì kết thúc
+                                    if (elapsedSec >= Math.Ceiling(targetDuration) + 2)
                                     {
                                         break;
                                     }
                                 }
                                 else
                                 {
-                                    // Trong vài giây đầu đợi nạp video, nếu sau 6s vẫn không có thẻ video thì dùng FixedSeconds fallback
+                                    // Trong vài giây đầu đợi nạp video, nếu sau 8s vẫn không có thẻ video thì dùng FixedSeconds fallback
                                     int fallbackSec = step.FixedSeconds > 0 ? step.FixedSeconds : 15;
-                                    TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang tải video ({elapsedSec}s/{fallbackSec}s)... | Đã thả {_totalLikedCount} ❤️";
+                                    TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang nạp video ({elapsedSec}s/{fallbackSec}s)... | Đã thả {_totalLikedCount} ❤️";
                                     if (elapsedSec >= fallbackSec)
                                     {
                                         break;
@@ -738,9 +740,23 @@ namespace MultiBrowser
                         // Next sang video tiếp theo
                         if (vIdx < targetCount)
                         {
+                            string prevUrl = activePanes[0].CurrentUrl;
                             TxtAutoStatus.Text = $"⏭️ Đang lướt sang video tiếp theo ({direction})...";
                             await Task.WhenAll(activePanes.Select(p => p.ScrollPlatformAsync(step.Platform, direction)));
-                            await Task.Delay(1500, token);
+                            await Task.Delay(2500, token);
+
+                            string newUrl = activePanes[0].CurrentUrl;
+                            // Nếu URL không đổi sau khi lướt (và đã xem ít nhất 2 video): kiểm tra xem có phải đã hết video trên kênh
+                            if (!string.IsNullOrEmpty(prevUrl) && !string.IsNullOrEmpty(newUrl) && prevUrl == newUrl && vIdx >= 2)
+                            {
+                                await Task.WhenAll(activePanes.Select(p => p.ScrollPlatformAsync(step.Platform, direction)));
+                                await Task.Delay(2000, token);
+                                if (activePanes[0].CurrentUrl == prevUrl)
+                                {
+                                    TxtAutoStatus.Text = $"✅ Đã xem hết toàn bộ video trên {step.Title} ({vIdx} video). Đang chuyển sang mục tiêu tiếp theo...";
+                                    break; // Thoát khỏi bước này để chuyển sang link tiếp theo!
+                                }
+                            }
                         }
                     }
 

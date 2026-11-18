@@ -429,7 +429,7 @@ namespace MultiBrowser
     public class PlaylistApiRequest
     {
         public List<string>? Links { get; set; }
-        public int VideoCountPerLink { get; set; } = 3;
+        public int VideoCountPerLink { get; set; } = 50;
         public string? Strategy { get; set; }
         public string? DurationMode { get; set; } = "FullVideoDuration";
         public int FixedSeconds { get; set; } = 15;
