@@ -16,6 +16,7 @@ namespace MultiBrowser
         private HttpListener? _listener;
         private bool _isRunning = false;
         private int _port;
+        private static string _apiToken = string.Empty;
 
         public int Port => _port;
         public bool IsRunning => _isRunning;
@@ -24,6 +25,32 @@ namespace MultiBrowser
         {
             _mainWindow = mainWindow;
             _port = port;
+            GetOrCreateApiToken();
+        }
+
+        public static string GetOrCreateApiToken()
+        {
+            if (!string.IsNullOrEmpty(_apiToken)) return _apiToken;
+
+            string tokenPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "api_token.txt");
+            try
+            {
+                if (File.Exists(tokenPath))
+                {
+                    _apiToken = File.ReadAllText(tokenPath).Trim();
+                    if (!string.IsNullOrEmpty(_apiToken)) return _apiToken;
+                }
+            }
+            catch { }
+
+            _apiToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.WriteAllText(tokenPath, _apiToken);
+            }
+            catch { }
+
+            return _apiToken;
         }
 
         public void Start()
@@ -40,7 +67,7 @@ namespace MultiBrowser
 
                 Task.Run(ListenLoopAsync);
             }
-            catch (Exception ex)
+            catch
             {
                 // Nếu cổng 5055 bị trùng, thử fallback sang 5056
                 try
@@ -81,10 +108,21 @@ namespace MultiBrowser
             var req = context.Request;
             var res = context.Response;
 
-            // CORS headers
-            res.AddHeader("Access-Control-Allow-Origin", "*");
+            // 1. Bảo vệ CSRF: Chặn các website bên ngoài gọi localhost, chỉ cho phép localhost
+            string origin = req.Headers["Origin"] ?? "";
+            if (!string.IsNullOrEmpty(origin))
+            {
+                if (!origin.Contains("localhost") && !origin.Contains("127.0.0.1"))
+                {
+                    res.StatusCode = 403;
+                    res.Close();
+                    return;
+                }
+                res.AddHeader("Access-Control-Allow-Origin", origin);
+            }
+
             res.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            res.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            res.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Api-Token");
 
             if (req.HttpMethod == "OPTIONS")
             {
@@ -95,6 +133,35 @@ namespace MultiBrowser
 
             string path = req.Url?.AbsolutePath.ToLowerInvariant().TrimEnd('/') ?? "";
             string method = req.HttpMethod.ToUpperInvariant();
+
+            // 2. Xác thực Token bảo mật (Bearer Token từ api_token.txt)
+            string authHeader = req.Headers["Authorization"] ?? req.Headers["X-Api-Token"] ?? "";
+            string expectedToken = GetOrCreateApiToken();
+
+            bool isAuthenticated = false;
+            if (!string.IsNullOrEmpty(authHeader))
+            {
+                string token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                    ? authHeader.Substring(7).Trim()
+                    : authHeader.Trim();
+                isAuthenticated = (token == expectedToken);
+            }
+
+            // Cho phép xem capabilities công khai để bot khám phá, các thao tác điều khiển bắt buộc có token
+            if (path != "/api/capabilities" && path != "/api/help" && !isAuthenticated)
+            {
+                res.StatusCode = 401;
+                byte[] unauthorizedBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "Yêu cầu chưa được xác thực. Vui lòng truyền Header 'Authorization: Bearer <token>' lấy từ file api_token.txt."
+                }));
+                res.ContentType = "application/json; charset=utf-8";
+                res.ContentLength64 = unauthorizedBytes.Length;
+                await res.OutputStream.WriteAsync(unauthorizedBytes, 0, unauthorizedBytes.Length);
+                res.Close();
+                return;
+            }
 
             try
             {
@@ -120,16 +187,24 @@ namespace MultiBrowser
                     var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
                     if (data != null && data.TryGetValue("count", out var countEl) && countEl.TryGetInt32(out int count))
                     {
-                        await _mainWindow.Dispatcher.InvokeAsync(async () =>
+                        if (count == 1 || count == 2 || count == 4 || count == 6 || count == 8)
                         {
-                            await _mainWindow.SwitchWindowCountAsync(count);
-                        });
-                        responseData = new { success = true, message = $"Đã chuyển số lượng cửa sổ thành {count}." };
+                            await _mainWindow.Dispatcher.InvokeAsync(async () =>
+                            {
+                                await _mainWindow.SwitchWindowCountAsync(count);
+                            });
+                            responseData = new { success = true, message = $"Đã chuyển số lượng cửa sổ thành {count}." };
+                        }
+                        else
+                        {
+                            res.StatusCode = 400;
+                            responseData = new { success = false, error = "Tham số 'count' phải là 1, 2, 4, 6 hoặc 8." };
+                        }
                     }
                     else
                     {
                         res.StatusCode = 400;
-                        responseData = new { success = false, error = "Tham số 'count' (2, 4, 6, 8) không hợp lệ." };
+                        responseData = new { success = false, error = "Tham số 'count' không hợp lệ." };
                     }
                 }
                 else if (path == "/api/navigate" && method == "POST")
@@ -178,10 +253,10 @@ namespace MultiBrowser
                     var playlistPayload = JsonSerializer.Deserialize<PlaylistApiRequest>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (playlistPayload != null && playlistPayload.Links != null && playlistPayload.Links.Any())
                     {
-                        var createdItems = await _mainWindow.Dispatcher.InvokeAsync(async () =>
-                        {
-                            return await _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload);
-                        });
+                        // Sửa lỗi nested-task: invoke synchronous method setup trên UI thread rồi await task kết quả
+                        var taskOp = _mainWindow.Dispatcher.Invoke(() => _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload));
+                        var createdItems = await taskOp;
+
                         responseData = new
                         {
                             success = true,
@@ -235,7 +310,8 @@ namespace MultiBrowser
                 appName = "MultiBrowser Automation Engine",
                 version = "2.0.0",
                 port = _port,
-                description = "Giao thức điều khiển MultiBrowser trực tiếp cho AI Agent / MCP Server. Cho phép bot quan sát, chuyển đổi 2/4/6/8 cửa sổ, điều hướng, tự động sắp xếp kịch bản và chạy trực tiếp trên giao diện người dùng.",
+                tokenFile = "api_token.txt",
+                description = "Giao thức điều khiển MultiBrowser trực tiếp cho AI Agent / MCP Server. Cho phép bot quan sát, chuyển đổi 1/2/4/6/8 cửa sổ, điều hướng, tự động sắp xếp kịch bản và chạy trực tiếp trên giao diện người dùng.",
                 capabilities = new[]
                 {
                     new
@@ -248,14 +324,14 @@ namespace MultiBrowser
                     {
                         command = "get_status",
                         endpoint = "GET /api/status",
-                        description = "Lấy trạng thái thời gian thực của app: số cửa sổ (2, 4, 6, 8), danh sách URL các tab, trạng thái automation, âm thanh..."
+                        description = "Lấy trạng thái thời gian thực của app: số cửa sổ (1, 2, 4, 6, 8), danh sách URL các tab, trạng thái automation, âm thanh..."
                     },
                     new
                     {
                         command = "set_window_count",
                         endpoint = "POST /api/set_window_count",
-                        description = "Thiết lập số lượng cửa sổ hiển thị (2, 4, 6, hoặc 8 cửa sổ)",
-                        parameters = new { count = "2 | 4 | 6 | 8" }
+                        description = "Thiết lập số lượng cửa sổ hiển thị (1, 2, 4, 6, hoặc 8 cửa sổ)",
+                        parameters = new { count = "1 | 2 | 4 | 6 | 8" }
                     },
                     new
                     {
@@ -286,7 +362,7 @@ namespace MultiBrowser
                         parameters = new
                         {
                             links = new[] { "https://www.youtube.com/@channel/shorts", "https://www.tiktok.com/@user", "https://www.youtube.com/watch?v=..." },
-                            videoCountPerLink = "Số video xem mỗi link (mặc định: 5)",
+                            videoCountPerLink = "Số video xem mỗi link (mặc định: 3)",
                             strategy = "TopToBottom | BottomToTop (hoặc để trống để bot tự chọn tối ưu)",
                             durationMode = "FullVideoDuration (xem hết video) | FixedSeconds | RandomRange",
                             loopContinuous = "true (lặp lại liên tục) | false",

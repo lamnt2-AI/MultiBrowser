@@ -7,14 +7,42 @@
 
 const http = require('http');
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
 
 const API_HOST = '127.0.0.1';
 let API_PORT = 5055;
+
+// Tự động tìm và đọc file api_token.txt để xác thực an toàn
+function getApiToken() {
+  if (process.env.MULTIBROWSER_API_TOKEN) {
+    return process.env.MULTIBROWSER_API_TOKEN.trim();
+  }
+
+  const potentialPaths = [
+    path.join(__dirname, '..', 'api_token.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'publish', 'api_token.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Debug', 'net10.0-windows', 'api_token.txt'),
+    path.join(process.cwd(), 'api_token.txt')
+  ];
+
+  for (const p of potentialPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const token = fs.readFileSync(p, 'utf8').trim();
+        if (token) return token;
+      }
+    } catch (e) {}
+  }
+  return '';
+}
 
 // Helper to make HTTP requests to the running MultiBrowser WPF App
 function callApi(endpoint, method = 'GET', data = null) {
   return new Promise((resolve, reject) => {
     const postData = data ? JSON.stringify(data) : '';
+    const token = getApiToken();
+
     const options = {
       hostname: API_HOST,
       port: API_PORT,
@@ -22,6 +50,7 @@ function callApi(endpoint, method = 'GET', data = null) {
       method: method,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...(data ? { 'Content-Length': Buffer.byteLength(postData) } : {})
       },
       timeout: 10000

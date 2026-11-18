@@ -65,12 +65,14 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <RadioButton x:Name="RbOpt2" Grid.Row="0" Grid.Column="0" Content="2 Cửa Sổ (Bố cục 1x2)" Style="{StaticResource SettingRadioStyle}"/>
-                            <RadioButton x:Name="RbOpt4" Grid.Row="0" Grid.Column="1" Content="4 Cửa Sổ (Bố cục 2x2 - Chuẩn)" Style="{StaticResource SettingRadioStyle}"/>
-                            <RadioButton x:Name="RbOpt6" Grid.Row="1" Grid.Column="0" Content="6 Cửa Sổ (Bố cục 2x3)" Style="{StaticResource SettingRadioStyle}"/>
-                            <RadioButton x:Name="RbOpt8" Grid.Row="1" Grid.Column="1" Content="8 Cửa Sổ (Bố cục 2x4 - Tối đa)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt1" Grid.Row="0" Grid.Column="0" Content="1 Cửa Sổ (Toàn màn hình)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt2" Grid.Row="0" Grid.Column="1" Content="2 Cửa Sổ (Bố cục 1x2)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt4" Grid.Row="1" Grid.Column="0" Content="4 Cửa Sổ (Bố cục 2x2 - Chuẩn)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt6" Grid.Row="1" Grid.Column="1" Content="6 Cửa Sổ (Bố cục 2x3)" Style="{StaticResource SettingRadioStyle}"/>
+                            <RadioButton x:Name="RbOpt8" Grid.Row="2" Grid.Column="0" Content="8 Cửa Sổ (Bố cục 2x4 - Tối đa)" Style="{StaticResource SettingRadioStyle}"/>
                         </Grid>
                     </StackPanel>
                 </Border>

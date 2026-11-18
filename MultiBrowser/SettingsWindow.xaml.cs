@@ -19,6 +19,9 @@ namespace MultiBrowser
             // 1. Số lượng cửa sổ
             switch (_settings.WindowCount)
             {
+                case 1:
+                    RbOpt1.IsChecked = true;
+                    break;
                 case 2:
                     RbOpt2.IsChecked = true;
                     break;
@@ -46,7 +49,8 @@ namespace MultiBrowser
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
             // Lấy số lượng cửa sổ
-            if (RbOpt2.IsChecked == true) _settings.WindowCount = 2;
+            if (RbOpt1.IsChecked == true) _settings.WindowCount = 1;
+            else if (RbOpt2.IsChecked == true) _settings.WindowCount = 2;
             else if (RbOpt6.IsChecked == true) _settings.WindowCount = 6;
             else if (RbOpt8.IsChecked == true) _settings.WindowCount = 8;
             else _settings.WindowCount = 4;
