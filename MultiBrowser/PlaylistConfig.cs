@@ -25,8 +25,11 @@ namespace MultiBrowser
                     var config = JsonSerializer.Deserialize<PlaylistConfig>(json);
                     if (config != null)
                     {
-                        if (config.DelayBetweenLinksSec < 0) config.DelayBetweenLinksSec = 0;
-                        if (config.Items != null)
+                        if (config.Items == null)
+                        {
+                            config.Items = new List<PlaylistItem>();
+                        }
+                        else
                         {
                             foreach (var item in config.Items)
                             {
@@ -34,6 +37,7 @@ namespace MultiBrowser
                                 if (item.FixedSeconds < 1) item.FixedSeconds = 5;
                             }
                         }
+                        if (config.DelayBetweenLinksSec < 0) config.DelayBetweenLinksSec = 0;
                         return config;
                     }
                 }

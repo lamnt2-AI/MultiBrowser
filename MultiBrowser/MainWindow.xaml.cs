@@ -500,17 +500,25 @@ namespace MultiBrowser
 
         private async void BtnStartPlaylist_Click(object sender, RoutedEventArgs e)
         {
-            await StartPlaylistExecutionAsync();
+            await StartPlaylistExecutionAsync(allowDialog: true);
         }
 
-        private async Task StartPlaylistExecutionAsync()
+        private async Task StartPlaylistExecutionAsync(bool allowDialog = false)
         {
             StopAutoLoop();
 
             if (_playlistConfig.Items.Count == 0)
             {
-                var dlg = new PlaylistWindow(_playlistConfig) { Owner = this };
-                if (dlg.ShowDialog() != true || !dlg.ShouldStartImmediately) return;
+                if (allowDialog)
+                {
+                    var dlg = new PlaylistWindow(_playlistConfig) { Owner = this };
+                    if (dlg.ShowDialog() != true || !dlg.ShouldStartImmediately) return;
+                }
+                else
+                {
+                    TxtAutoStatus.Text = "⚠️ Danh sách kịch bản đang trống!";
+                    return;
+                }
             }
 
             var currentCts = new CancellationTokenSource();
@@ -761,8 +769,6 @@ namespace MultiBrowser
 
         public async Task<List<PlaylistItem>> AutoArrangeAndRunPlaylistFromApiAsync(PlaylistApiRequest request)
         {
-            StopAutoLoop();
-
             int videoCountPerLink = Math.Max(1, request.VideoCountPerLink);
             int delayBetweenLinksSec = Math.Max(0, request.DelayBetweenLinksSec);
             int fixedSeconds = Math.Max(1, request.FixedSeconds);
@@ -813,13 +819,20 @@ namespace MultiBrowser
                 }
             }
 
+            if (!newItems.Any())
+            {
+                return newItems;
+            }
+
+            StopAutoLoop();
+
             _playlistConfig.Items = newItems;
             _playlistConfig.LoopContinuous = request.LoopContinuous;
             _playlistConfig.DelayBetweenLinksSec = delayBetweenLinksSec;
             _playlistConfig.Save();
 
             // Khởi chạy ngay lập tức trên app ở background, không block API response (tránh timeout khi loop continuous)
-            _ = StartPlaylistExecutionAsync();
+            _ = StartPlaylistExecutionAsync(allowDialog: false);
 
             return newItems;
         }

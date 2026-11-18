@@ -14,7 +14,8 @@ namespace MultiBrowser
         public PlaylistWindow(PlaylistConfig config)
         {
             InitializeComponent();
-            Config = config;
+            Config = config ?? new PlaylistConfig();
+            if (Config.Items == null) Config.Items = new List<PlaylistItem>();
             Loaded += PlaylistWindow_Loaded;
         }
 

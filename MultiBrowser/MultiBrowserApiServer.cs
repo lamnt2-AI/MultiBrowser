@@ -266,7 +266,7 @@ namespace MultiBrowser
                 {
                     // Tự động nhận diện, sắp xếp và kích hoạt chạy trực tiếp trên app
                     var playlistPayload = JsonSerializer.Deserialize<PlaylistApiRequest>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (playlistPayload != null && playlistPayload.Links != null && playlistPayload.Links.Any())
+                    if (playlistPayload != null && playlistPayload.Links != null && playlistPayload.Links.Any(l => !string.IsNullOrWhiteSpace(l)))
                     {
                         if (playlistPayload.VideoCountPerLink < 1)
                         {
@@ -284,18 +284,26 @@ namespace MultiBrowser
                             var taskOp = _mainWindow.Dispatcher.Invoke(() => _mainWindow.AutoArrangeAndRunPlaylistFromApiAsync(playlistPayload));
                             var createdItems = await taskOp;
 
-                            responseData = new
+                            if (createdItems == null || !createdItems.Any())
                             {
-                                success = true,
-                                message = $"Đã tự động phân tích và bắt đầu chạy kịch bản gồm {createdItems.Count} mục tiêu trên app!",
-                                items = createdItems
-                            };
+                                res.StatusCode = 400;
+                                responseData = new { success = false, error = "Danh sách 'links' không chứa bất kỳ đường link URL hợp lệ nào." };
+                            }
+                            else
+                            {
+                                responseData = new
+                                {
+                                    success = true,
+                                    message = $"Đã tự động phân tích và bắt đầu chạy kịch bản gồm {createdItems.Count} mục tiêu trên app!",
+                                    items = createdItems
+                                };
+                            }
                         }
                     }
                     else
                     {
                         res.StatusCode = 400;
-                        responseData = new { success = false, error = "Cần truyền danh sách 'links' dạng mảng URL." };
+                        responseData = new { success = false, error = "Cần truyền danh sách 'links' chứa ít nhất một đường link URL hợp lệ." };
                     }
                 }
                 else if (path == "/api/playlist/stop" && method == "POST")
