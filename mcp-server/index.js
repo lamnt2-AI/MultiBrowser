@@ -21,6 +21,7 @@ function getApiToken() {
 
   const potentialPaths = [
     path.join(__dirname, '..', 'api_token.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'api_token.txt'),
     path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'publish', 'api_token.txt'),
     path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Debug', 'net10.0-windows', 'api_token.txt'),
     path.join(process.cwd(), 'api_token.txt')
@@ -46,6 +47,7 @@ function getActualPort() {
 
   const potentialPaths = [
     path.join(__dirname, '..', 'port.txt'),
+    path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'port.txt'),
     path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Release', 'net10.0-windows', 'publish', 'port.txt'),
     path.join(__dirname, '..', 'MultiBrowser', 'bin', 'Debug', 'net10.0-windows', 'port.txt'),
     path.join(process.cwd(), 'port.txt')
@@ -237,8 +239,8 @@ const TOOLS = [
       properties: {
         action: {
           type: 'string',
-          enum: ['all_tab1', 'all_tab2', 'split_all', 'reload_all', 'mute_all', 'unmute_all'],
-          description: 'all_tab1: xem Tab 1 YouTube | all_tab2: xem Tab 2 TikTok | split_all: chia đôi dọc | reload_all: tải lại | mute_all: tắt âm | unmute_all: bật âm'
+          enum: ['all_tab1', 'all_tab2', 'split_all', 'unsplit_all', 'reload_all', 'mute_all', 'unmute_all'],
+          description: 'all_tab1: xem Tab 1 YouTube | all_tab2: xem Tab 2 TikTok | split_all: chia đôi dọc | unsplit_all: trở về 1 tab | reload_all: tải lại | mute_all: tắt âm | unmute_all: bật âm'
         }
       },
       required: ['action']

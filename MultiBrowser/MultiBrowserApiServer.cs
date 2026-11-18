@@ -381,7 +381,7 @@ namespace MultiBrowser
                         command = "layout_action",
                         endpoint = "POST /api/layout",
                         description = "Thực hiện thao tác điều khiển giao diện",
-                        parameters = new { action = "all_tab1 (YouTube) | all_tab2 (TikTok) | split_all (Chia đôi dọc) | reload_all" }
+                        parameters = new { action = "all_tab1 (YouTube) | all_tab2 (TikTok) | split_all (Chia đôi dọc) | unsplit_all (1 tab) | reload_all" }
                     },
                     new
                     {

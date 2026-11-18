@@ -128,6 +128,15 @@ namespace MultiBrowser
                     pane.SetMuteAll(true);
                 }
             }
+
+            // Đồng bộ trạng thái Split 2 Tab nếu đang bật
+            if (_isAllSplit)
+            {
+                foreach (var pane in _panes)
+                {
+                    pane.SetSplitMode(true);
+                }
+            }
         }
 
         private void ApplyGridLayout(int count)
@@ -300,16 +309,21 @@ namespace MultiBrowser
             TxtAutoStatus.Text = $"Đã chuyển tất cả {GetActivePanes().Count()} ô sang Tab 2 (TikTok)";
         }
 
-        private void BtnAllSplitTab_Click(object sender, RoutedEventArgs e)
+        public void SetSplitModeAll(bool split)
         {
-            _isAllSplit = !_isAllSplit;
-            foreach (var pane in GetActivePanes())
+            _isAllSplit = split;
+            foreach (var pane in _panes)
             {
-                pane.SetSplitMode(_isAllSplit);
+                pane.SetSplitMode(split);
             }
             TxtAutoStatus.Text = _isAllSplit 
                 ? $"Đã bật chế độ chia đôi DỌC (Trái: YouTube | Phải: TikTok) trên tất cả các ô!" 
                 : "Đã trở về chế độ 1 tab.";
+        }
+
+        private void BtnAllSplitTab_Click(object sender, RoutedEventArgs e)
+        {
+            SetSplitModeAll(!_isAllSplit);
         }
 
         private void BtnOpenProfilesFolder_Click(object sender, RoutedEventArgs e)
@@ -751,7 +765,10 @@ namespace MultiBrowser
                     BtnAllTab2_Click(this, new RoutedEventArgs());
                     return true;
                 case "split_all":
-                    BtnAllSplitTab_Click(this, new RoutedEventArgs());
+                    SetSplitModeAll(true);
+                    return true;
+                case "unsplit_all":
+                    SetSplitModeAll(false);
                     return true;
                 case "reload_all":
                     BtnReloadAll_Click(this, new RoutedEventArgs());
