@@ -82,7 +82,6 @@ namespace MultiBrowser
                 // Cấu hình cờ Chromium: Chống phát hiện, bảo vệ WebRTC và tối ưu bộ nhớ
                 string chromiumArgs = "--disable-blink-features=AutomationControlled " +
                                      "--force-webrtc-ip-handling-policy=disable_non_proxied_udp " +
-                                     "--disable-features=IsolateOrigins,site-per-process " +
                                      "--no-default-browser-check";
 
                 if (!string.IsNullOrEmpty(proxyServer))

@@ -61,7 +61,6 @@ namespace MultiBrowser
             {
                 _listener = new HttpListener();
                 _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
-                _listener.Prefixes.Add($"http://localhost:{_port}/");
                 _listener.Start();
                 _isRunning = true;
                 WritePortFile(_port);
@@ -76,7 +75,6 @@ namespace MultiBrowser
                     _port = 5056;
                     _listener = new HttpListener();
                     _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
-                    _listener.Prefixes.Add($"http://localhost:{_port}/");
                     _listener.Start();
                     _isRunning = true;
                     WritePortFile(_port);
