@@ -240,11 +240,16 @@ namespace MultiBrowser
                     var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(requestBody);
                     string action = data != null && data.TryGetValue("action", out var actionEl) ? actionEl.GetString() ?? "" : "";
 
-                    await _mainWindow.Dispatcher.InvokeAsync(() =>
+                    bool handled = await _mainWindow.Dispatcher.InvokeAsync(() => _mainWindow.ExecuteLayoutActionFromApi(action));
+                    if (handled)
                     {
-                        _mainWindow.ExecuteLayoutActionFromApi(action);
-                    });
-                    responseData = new { success = true, message = $"Đã thực hiện thao tác bố cục: {action}." };
+                        responseData = new { success = true, message = $"Đã thực hiện thao tác bố cục: {action}." };
+                    }
+                    else
+                    {
+                        res.StatusCode = 400;
+                        responseData = new { success = false, error = $"Hành động bố cục '{action}' không hợp lệ. Hỗ trợ: all_tab1, all_tab2, split_all, reload_all." };
+                    }
                 }
                 else if (path == "/api/mute" && method == "POST")
                 {

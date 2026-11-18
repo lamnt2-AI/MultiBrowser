@@ -17,6 +17,7 @@ namespace MultiBrowser
         private int _activeTab = 1;
         private bool _isForceMuted = false;
         private CoreWebView2Environment? _env;
+        private Task? _initTask;
 
         public int ProfileId => _profileId;
         public bool IsBrowserReady => _isInitialized;
@@ -32,7 +33,16 @@ namespace MultiBrowser
             InitializeComponent();
         }
 
-        public async Task InitializeAsync(int profileId, string customName, string defaultUrl1 = "https://www.youtube.com/@lam-kid-studio/shorts", string defaultUrl2 = "https://www.tiktok.com")
+        public Task InitializeAsync(int profileId, string customName, string defaultUrl1 = "https://www.youtube.com/@lam-kid-studio/shorts", string defaultUrl2 = "https://www.tiktok.com")
+        {
+            if (_isInitialized) return Task.CompletedTask;
+            if (_initTask != null) return _initTask;
+
+            _initTask = DoInitializeAsync(profileId, customName, defaultUrl1, defaultUrl2);
+            return _initTask;
+        }
+
+        private async Task DoInitializeAsync(int profileId, string customName, string defaultUrl1, string defaultUrl2)
         {
             _profileId = profileId;
             TxtProfileBadge.Text = customName;
@@ -983,6 +993,7 @@ namespace MultiBrowser
                 BrowserControl1?.Dispose();
                 BrowserControl2?.Dispose();
                 _env = null;
+                _initTask = null;
             }
             catch { }
         }

@@ -431,6 +431,10 @@ namespace MultiBrowser
 
                 while (!token.IsCancellationRequested)
                 {
+                    // Lấy động danh sách các ô đang hiển thị (thích ứng ngay nếu đổi layout)
+                    var activePanes = GetActivePanes().ToList();
+                    if (!activePanes.Any()) break;
+
                     // 1. Kiểm tra và thả tym đồng loạt trên các ô đang hiển thị
                     if (shouldLike)
                     {
@@ -542,13 +546,6 @@ namespace MultiBrowser
 
         private async Task RunPlaylistCampaignAsync(PlaylistConfig config, CancellationToken token)
         {
-            var activePanes = GetActivePanes().ToList();
-            if (!activePanes.Any())
-            {
-                TxtAutoStatus.Text = "⚠️ Không có ô trình duyệt nào sẵn sàng!";
-                return;
-            }
-
             if (!config.Items.Any())
             {
                 TxtAutoStatus.Text = "⚠️ Kịch bản chưa có liên kết nào!";
@@ -563,6 +560,15 @@ namespace MultiBrowser
                 {
                     token.ThrowIfCancellationRequested();
                     var step = config.Items[i];
+
+                    // Tự động thích ứng với các ô hiển thị thực tế (nếu người dùng hoặc API đổi số ô)
+                    var activePanes = GetActivePanes().ToList();
+                    if (!activePanes.Any())
+                    {
+                        TxtAutoStatus.Text = "⚠️ Không có ô trình duyệt nào sẵn sàng!";
+                        await Task.Delay(1500, token);
+                        continue;
+                    }
 
                     TxtAutoStatus.Text = $"▶ [Vòng {loopCount} - Bước {i + 1}/{config.Items.Count}] Đang mở: {step.Title} ({step.PlatformBadge})...";
 
@@ -595,6 +601,10 @@ namespace MultiBrowser
                     for (int vIdx = 1; vIdx <= targetCount; vIdx++)
                     {
                         token.ThrowIfCancellationRequested();
+
+                        // Cập nhật lại activePanes nếu layout vừa đổi
+                        activePanes = GetActivePanes().ToList();
+                        if (!activePanes.Any()) break;
 
                         // Thả tym nếu bật
                         if (step.AutoLike)
@@ -718,22 +728,24 @@ namespace MultiBrowser
             SyncNavigate(url);
         }
 
-        public void ExecuteLayoutActionFromApi(string action)
+        public bool ExecuteLayoutActionFromApi(string action)
         {
             switch (action.ToLowerInvariant())
             {
                 case "all_tab1":
                     BtnAllTab1_Click(this, new RoutedEventArgs());
-                    break;
+                    return true;
                 case "all_tab2":
                     BtnAllTab2_Click(this, new RoutedEventArgs());
-                    break;
+                    return true;
                 case "split_all":
                     BtnAllSplitTab_Click(this, new RoutedEventArgs());
-                    break;
+                    return true;
                 case "reload_all":
                     BtnReloadAll_Click(this, new RoutedEventArgs());
-                    break;
+                    return true;
+                default:
+                    return false;
             }
         }
 
