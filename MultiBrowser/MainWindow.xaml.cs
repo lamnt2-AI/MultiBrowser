@@ -95,6 +95,9 @@ namespace MultiBrowser
         public async Task SwitchWindowCountAsync(int count)
         {
             _currentWindowCount = count;
+            _settings.WindowCount = count;
+            _settings.Save();
+            UpdateLayoutRadioSelection(count);
             ApplyGridLayout(count);
 
             // Khởi tạo các ô chưa được nạp trong số các ô đang hiển thị (Lazy Init)

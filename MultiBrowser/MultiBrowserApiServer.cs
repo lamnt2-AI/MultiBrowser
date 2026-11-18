@@ -201,10 +201,8 @@ namespace MultiBrowser
                     {
                         if (count == 1 || count == 2 || count == 4 || count == 6 || count == 8)
                         {
-                            await _mainWindow.Dispatcher.InvokeAsync(async () =>
-                            {
-                                await _mainWindow.SwitchWindowCountAsync(count);
-                            });
+                            var switchTask = _mainWindow.Dispatcher.Invoke(() => _mainWindow.SwitchWindowCountAsync(count));
+                            await switchTask;
                             responseData = new { success = true, message = $"Đã chuyển số lượng cửa sổ thành {count}." };
                         }
                         else
