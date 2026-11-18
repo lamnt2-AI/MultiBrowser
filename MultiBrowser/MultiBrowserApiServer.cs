@@ -348,7 +348,7 @@ namespace MultiBrowser
                 port = _port,
                 tokenFile = "api_token.txt",
                 description = "Giao thức điều khiển MultiBrowser trực tiếp cho AI Agent / MCP Server. Cho phép bot quan sát, chuyển đổi 1/2/4/6/8 cửa sổ, điều hướng, tự động sắp xếp kịch bản và chạy trực tiếp trên giao diện người dùng.",
-                capabilities = new[]
+                capabilities = new object[]
                 {
                     new
                     {
