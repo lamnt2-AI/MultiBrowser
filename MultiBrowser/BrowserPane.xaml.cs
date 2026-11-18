@@ -662,6 +662,303 @@ namespace MultiBrowser
             catch { }
         }
 
+        // ================= TỰ ĐỘNG HÓA ĐA NỀN TẢNG (YOUTUBE, TIKTOK, FACEBOOK, INSTAGRAM) =================
+
+        public async Task<VideoPlaybackState> GetVideoPlaybackStateAsync()
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null)
+                return new VideoPlaybackState { Found = false };
+
+            string script = @"
+            (function() {
+                try {
+                    let skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .videoAdUiSkipButton');
+                    if (skipBtn) skipBtn.click();
+                } catch(e) {}
+
+                let v = null;
+                let activeReel = document.querySelector('ytd-reel-video-renderer[is-active]');
+                if (activeReel) {
+                    v = activeReel.querySelector('video');
+                }
+                if (!v) {
+                    let allVideos = Array.from(document.querySelectorAll('video'));
+                    v = allVideos.find(vid => vid.offsetWidth > 120 && vid.offsetHeight > 120) || allVideos[0];
+                }
+
+                if (!v) return JSON.stringify({ found: false, duration: 0, currentTime: 0, paused: true, ended: false });
+
+                if (v.paused && !v.ended) {
+                    try { v.play(); } catch(e) {}
+                }
+
+                return JSON.stringify({
+                    found: true,
+                    duration: (isNaN(v.duration) || v.duration === Infinity) ? 0 : v.duration,
+                    currentTime: isNaN(v.currentTime) ? 0 : v.currentTime,
+                    paused: v.paused,
+                    ended: v.ended
+                });
+            })();";
+
+            try
+            {
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                if (!string.IsNullOrEmpty(raw) && raw != "null")
+                {
+                    string json = raw;
+                    if (json.StartsWith("\"") && json.EndsWith("\""))
+                    {
+                        json = System.Text.RegularExpressions.Regex.Unescape(json.Substring(1, json.Length - 2));
+                    }
+                    var state = System.Text.Json.JsonSerializer.Deserialize<VideoPlaybackState>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (state != null) return state;
+                }
+            }
+            catch { }
+
+            return new VideoPlaybackState { Found = false };
+        }
+
+        public async Task<string> LikeCurrentPlatformAsync(PlatformType platform)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
+
+            string script = @"
+            (function() {
+                // 1. YouTube Shorts
+                let activeReel = document.querySelector('ytd-reel-video-renderer[is-active]');
+                if (activeReel) {
+                    let btn = activeReel.querySelector('#like-button button, like-button-view-model button, ytd-like-button-renderer button');
+                    if (btn) {
+                        if (btn.getAttribute('aria-pressed') === 'true') return 'ALREADY_LIKED';
+                        btn.click();
+                        return 'LIKED_SUCCESS';
+                    }
+                }
+
+                // 2. YouTube Long Video
+                let ytLike = document.querySelector('#top-level-buttons-computed ytd-like-button-renderer button, like-button-view-model button, ytd-watch-metadata like-button-view-model button');
+                if (ytLike) {
+                    if (ytLike.getAttribute('aria-pressed') === 'true') return 'ALREADY_LIKED';
+                    ytLike.click();
+                    return 'LIKED_SUCCESS';
+                }
+
+                // 3. TikTok
+                let tiktokLike = document.querySelector('[data-e2e=""like-icon""], span[data-e2e=""like-icon""], button[aria-label*=""Like""], button[aria-label*=""Thích""]');
+                if (tiktokLike) {
+                    tiktokLike.click();
+                    return 'LIKED_SUCCESS';
+                }
+
+                // 4. Facebook Reels & Video
+                let fbLike = document.querySelector('div[aria-label=""Thích""][role=""button""], div[aria-label=""Like""][role=""button""], div[aria-label=""Bày tỏ cảm xúc: Thích""]');
+                if (fbLike) {
+                    fbLike.click();
+                    return 'LIKED_SUCCESS';
+                }
+
+                // 5. Instagram Reels
+                let igLike = document.querySelector('svg[aria-label=""Like""], svg[aria-label=""Thích""]')?.closest('button') || document.querySelector('svg[aria-label=""Like""], svg[aria-label=""Thích""]');
+                if (igLike) {
+                    igLike.click();
+                    return 'LIKED_SUCCESS';
+                }
+
+                return 'NO_LIKE_BUTTON';
+            })();";
+
+            try
+            {
+                var rawResult = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                string result = rawResult?.Trim('"') ?? "NO_RESULT";
+                if (result == "LIKED_SUCCESS")
+                {
+                    TxtStatus.Text = $"[{TxtActiveTabIndicator.Text}] ❤️ Đã thả tym/thích video!";
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return $"ERROR: {ex.Message}";
+            }
+        }
+
+        public async Task<string> ScrollPlatformAsync(PlatformType platform, string direction)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
+
+            bool isUp = direction.ToLower().Contains("up") || direction.ToLower().Contains("lên");
+            string script = $@"
+            (function() {{
+                let isUp = {(isUp ? "true" : "false")};
+                
+                // 1. YouTube Shorts Nav Buttons
+                let navBtn = document.querySelector(isUp ? '#navigation-button-up button' : '#navigation-button-down button');
+                if (navBtn) {{
+                    navBtn.click();
+                    return 'BTN_CLICKED';
+                }}
+
+                // 2. Dispatch phím mũi tên chuẩn
+                let key = isUp ? 'ArrowUp' : 'ArrowDown';
+                let code = isUp ? 38 : 40;
+                let eventDown = new KeyboardEvent('keydown', {{ key: key, keyCode: code, which: code, code: key, bubbles: true }});
+                let eventUp = new KeyboardEvent('keyup', {{ key: key, keyCode: code, which: code, code: key, bubbles: true }});
+                document.dispatchEvent(eventDown);
+                document.dispatchEvent(eventUp);
+
+                // 3. Cuộn mượt fallback
+                window.scrollBy({{ top: isUp ? -window.innerHeight * 0.8 : window.innerHeight * 0.8, behavior: 'smooth' }});
+                return 'KEY_SENT';
+            }})();";
+
+            try
+            {
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                return raw?.Trim('"') ?? "OK";
+            }
+            catch (Exception ex)
+            {
+                return $"ERROR: {ex.Message}";
+            }
+        }
+
+        public async Task<bool> AutoScrollToBottomAndClickOldestAsync(PlatformType platform)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
+
+            string script = @"
+            (async function() {
+                let lastHeight = 0;
+                let unchanged = 0;
+                let maxLoops = 40;
+
+                while (maxLoops > 0) {
+                    maxLoops--;
+                    let h = document.documentElement.scrollHeight || document.body.scrollHeight;
+                    window.scrollTo({ top: h, behavior: 'smooth' });
+                    await new Promise(r => setTimeout(r, 900));
+
+                    let newH = document.documentElement.scrollHeight || document.body.scrollHeight;
+                    if (newH === lastHeight) {
+                        unchanged++;
+                        if (unchanged >= 3) break;
+                    } else {
+                        unchanged = 0;
+                        lastHeight = newH;
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 1000));
+
+                let allItems = Array.from(document.querySelectorAll(
+                    'ytd-reel-item-renderer a, ytd-rich-item-renderer a[href*=""/shorts/""], [data-e2e=""user-post-item""] a, a[href*=""/reel/""], a[href*=""/video""]'
+                ));
+
+                if (allItems.length > 0) {
+                    let lastItem = allItems[allItems.length - 1];
+                    lastItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    await new Promise(r => setTimeout(r, 600));
+                    lastItem.click();
+                    return 'CLICKED_OLDEST';
+                }
+
+                return 'NO_ITEMS';
+            })();";
+
+            try
+            {
+                TxtStatus.Text = "⏳ Đang cuộn xuống đáy trang để chọn video cũ nhất...";
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                return raw != null && raw.Contains("CLICKED_OLDEST");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> EnsurePlayerStartedAsync(PlatformType platform)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
+
+            if (platform == PlatformType.YouTubeShorts)
+            {
+                return await EnsureShortsPlayerOpenAsync();
+            }
+            else if (platform == PlatformType.TikTok)
+            {
+                string script = @"
+                (function() {
+                    if (window.location.pathname.includes('/video/')) return 'IN_PLAYER';
+                    let firstVideo = document.querySelector('[data-e2e=""user-post-item""] a, div[data-e2e=""recommend-list-item-container""] a');
+                    if (firstVideo) {
+                        firstVideo.click();
+                        return 'CLICKED';
+                    }
+                    return 'NOT_FOUND';
+                })();";
+                try {
+                    var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                    return raw != null && !raw.Contains("NOT_FOUND");
+                } catch { return false; }
+            }
+            else if (platform == PlatformType.FacebookReels)
+            {
+                string script = @"
+                (function() {
+                    if (window.location.pathname.includes('/reel/')) return 'IN_PLAYER';
+                    let firstReel = document.querySelector('a[href*=""/reel/""]');
+                    if (firstReel) { firstReel.click(); return 'CLICKED'; }
+                    return 'NOT_FOUND';
+                })();";
+                try {
+                    var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                    return raw != null && !raw.Contains("NOT_FOUND");
+                } catch { return false; }
+            }
+            else if (platform == PlatformType.InstagramReels)
+            {
+                string script = @"
+                (function() {
+                    if (window.location.pathname.includes('/reel/') || window.location.pathname.includes('/reels/')) return 'IN_PLAYER';
+                    let firstReel = document.querySelector('a[href*=""/reel/""]');
+                    if (firstReel) { firstReel.click(); return 'CLICKED'; }
+                    return 'NOT_FOUND';
+                })();";
+                try {
+                    var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                    return raw != null && !raw.Contains("NOT_FOUND");
+                } catch { return false; }
+            }
+
+            return true;
+        }
+
+        public async Task<string> AutoInteractPlatformAsync(PlatformType platform)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
+
+            string script = @"
+            (function() {
+                let shareBtn = document.querySelector('#share-button button, [data-e2e=""share-icon""], div[aria-label=""Chia sẻ""]');
+                if (shareBtn) {
+                    shareBtn.focus();
+                    return 'HOVER_SHARE';
+                }
+                return 'NO_INTERACTION';
+            })();";
+
+            try {
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                return raw?.Trim('"') ?? "OK";
+            } catch (Exception ex) {
+                return $"ERROR: {ex.Message}";
+            }
+        }
+
         public void Dispose()
         {
             try

@@ -14,6 +14,7 @@ namespace MultiBrowser
     public partial class MainWindow : Window
     {
         private AppSettings _settings = new();
+        private PlaylistConfig _playlistConfig = new();
         private CancellationTokenSource? _autoLoopCts;
         private int _totalLikedCount = 0;
         private int _totalViewedCount = 0;
@@ -33,8 +34,9 @@ namespace MultiBrowser
         {
             _panes = new[] { Pane1, Pane2, Pane3, Pane4, Pane5, Pane6, Pane7, Pane8 };
 
-            // Tải cấu hình từ settings.json
+            // Tải cấu hình từ settings.json & playlist.json
             _settings = AppSettings.Load();
+            _playlistConfig = PlaylistConfig.Load();
             _currentWindowCount = _settings.WindowCount;
 
             // Đồng bộ cấu hình lên giao diện tự động hóa
@@ -366,6 +368,9 @@ namespace MultiBrowser
                     _autoLoopCts = null;
                 }
             }
+
+            if (BtnStartPlaylist != null) { BtnStartPlaylist.IsEnabled = true; BtnStartPlaylist.Opacity = 1.0; }
+            if (BtnStartAutoWatch != null) { BtnStartAutoWatch.IsEnabled = true; BtnStartAutoWatch.Opacity = 1.0; }
         }
 
         // Tự động hóa trực tiếp trên UI Dispatcher thread với async/await non-blocking (Chuẩn Concurrency)
@@ -448,6 +453,212 @@ namespace MultiBrowser
                 BtnStartAutoWatch.Opacity = 1.0;
                 TxtAutoStatus.Text = $"⏹ Hoàn tất: Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
             }
+        }
+
+        // ================= KỊCH BẢN XEM LẦN LƯỢT ĐA NỀN TẢNG =================
+
+        private async void BtnOpenPlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new PlaylistWindow(_playlistConfig) { Owner = this };
+            if (dlg.ShowDialog() == true && dlg.ShouldStartImmediately)
+            {
+                await StartPlaylistExecutionAsync();
+            }
+        }
+
+        private async void BtnStartPlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            await StartPlaylistExecutionAsync();
+        }
+
+        private async Task StartPlaylistExecutionAsync()
+        {
+            StopAutoLoop();
+
+            if (_playlistConfig.Items.Count == 0)
+            {
+                var dlg = new PlaylistWindow(_playlistConfig) { Owner = this };
+                if (dlg.ShowDialog() != true || !dlg.ShouldStartImmediately) return;
+            }
+
+            _autoLoopCts = new CancellationTokenSource();
+            var token = _autoLoopCts.Token;
+
+            BtnStartPlaylist.IsEnabled = false;
+            BtnStartPlaylist.Opacity = 0.6;
+            BtnStartAutoWatch.IsEnabled = false;
+            BtnStartAutoWatch.Opacity = 0.6;
+
+            try
+            {
+                await RunPlaylistCampaignAsync(_playlistConfig, token);
+            }
+            catch (OperationCanceledException)
+            {
+                TxtAutoStatus.Text = "⏹️ Đã dừng kịch bản xem lần lượt.";
+            }
+            catch (Exception ex)
+            {
+                TxtAutoStatus.Text = $"Lỗi kịch bản: {ex.Message}";
+            }
+            finally
+            {
+                BtnStartPlaylist.IsEnabled = true;
+                BtnStartPlaylist.Opacity = 1.0;
+                BtnStartAutoWatch.IsEnabled = true;
+                BtnStartAutoWatch.Opacity = 1.0;
+            }
+        }
+
+        private async Task RunPlaylistCampaignAsync(PlaylistConfig config, CancellationToken token)
+        {
+            var activePanes = GetActivePanes().ToList();
+            if (!activePanes.Any())
+            {
+                TxtAutoStatus.Text = "⚠️ Không có ô trình duyệt nào sẵn sàng!";
+                return;
+            }
+
+            if (!config.Items.Any())
+            {
+                TxtAutoStatus.Text = "⚠️ Kịch bản chưa có liên kết nào!";
+                return;
+            }
+
+            int loopCount = 1;
+
+            while (!token.IsCancellationRequested)
+            {
+                for (int i = 0; i < config.Items.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var step = config.Items[i];
+
+                    TxtAutoStatus.Text = $"▶ [Vòng {loopCount} - Bước {i + 1}/{config.Items.Count}] Đang mở: {step.Title} ({step.PlatformBadge})...";
+
+                    // 1. Điều hướng tất cả các ô active đến URL của bước này
+                    foreach (var pane in activePanes)
+                    {
+                        pane.Navigate(step.Url);
+                    }
+
+                    // Chờ nạp trang ban đầu
+                    await Task.Delay(3500, token);
+
+                    // 2. Chiến lược cuộn
+                    string direction = "down";
+                    if (step.Strategy == ScrollStrategy.BottomToTop)
+                    {
+                        TxtAutoStatus.Text = $"⏳ Đang cuộn xuống đáy trang để bắt đầu từ video cũ nhất...";
+                        await Task.WhenAll(activePanes.Select(p => p.AutoScrollToBottomAndClickOldestAsync(step.Platform)));
+                        direction = "up";
+                        await Task.Delay(2000, token);
+                    }
+                    else
+                    {
+                        await Task.WhenAll(activePanes.Select(p => p.EnsurePlayerStartedAsync(step.Platform)));
+                        await Task.Delay(2000, token);
+                    }
+
+                    // 3. Thực thi xem lần lượt N video trong bước này
+                    int targetCount = step.VideoCount;
+                    for (int vIdx = 1; vIdx <= targetCount; vIdx++)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        // Thả tym nếu bật
+                        if (step.AutoLike)
+                        {
+                            await Task.WhenAll(activePanes.Select(async p =>
+                            {
+                                var res = await p.LikeCurrentPlatformAsync(step.Platform);
+                                if (res == "LIKED_SUCCESS")
+                                {
+                                    Interlocked.Increment(ref _totalLikedCount);
+                                }
+                            }));
+                        }
+
+                        // Mô phỏng tương tác thêm nếu bật
+                        if (step.AutoInteract)
+                        {
+                            await Task.WhenAll(activePanes.Select(p => p.AutoInteractPlatformAsync(step.Platform)));
+                        }
+
+                        Interlocked.Increment(ref _totalViewedCount);
+
+                        // Thời lượng xem
+                        if (step.DurationMode == WatchDurationMode.FullVideoDuration)
+                        {
+                            double detectedDuration = 0;
+                            try
+                            {
+                                var state = await activePanes[0].GetVideoPlaybackStateAsync();
+                                if (state.Found && state.Duration > 0)
+                                {
+                                    detectedDuration = state.Duration;
+                                }
+                            }
+                            catch { }
+
+                            int watchSeconds = (detectedDuration > 0 && detectedDuration < 3600)
+                                ? (int)Math.Ceiling(detectedDuration)
+                                : step.FixedSeconds;
+
+                            for (int s = watchSeconds; s > 0; s--)
+                            {
+                                token.ThrowIfCancellationRequested();
+                                int elapsed = watchSeconds - s;
+                                TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang xem ({elapsed}s/{watchSeconds}s) | Đã thả {_totalLikedCount} ❤️";
+                                await Task.Delay(1000, token);
+                            }
+                        }
+                        else if (step.DurationMode == WatchDurationMode.RandomRange)
+                        {
+                            int rSec = new Random().Next(Math.Min(step.MinSeconds, step.MaxSeconds), Math.Max(step.MinSeconds, step.MaxSeconds) + 1);
+                            for (int s = rSec; s > 0; s--)
+                            {
+                                token.ThrowIfCancellationRequested();
+                                TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Ngẫu nhiên: next sau {s}s... | Đã thả {_totalLikedCount} ❤️";
+                                await Task.Delay(1000, token);
+                            }
+                        }
+                        else
+                        {
+                            for (int s = step.FixedSeconds; s > 0; s--)
+                            {
+                                token.ThrowIfCancellationRequested();
+                                TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Chuyển sau {s}s... | Đã thả {_totalLikedCount} ❤️";
+                                await Task.Delay(1000, token);
+                            }
+                        }
+
+                        // Next sang video tiếp theo
+                        if (vIdx < targetCount)
+                        {
+                            TxtAutoStatus.Text = $"⏭️ Đang lướt sang video tiếp theo ({direction})...";
+                            await Task.WhenAll(activePanes.Select(p => p.ScrollPlatformAsync(step.Platform, direction)));
+                            await Task.Delay(1500, token);
+                        }
+                    }
+
+                    // Nghỉ giữa các bước liên kết
+                    if (i < config.Items.Count - 1 || config.LoopContinuous)
+                    {
+                        TxtAutoStatus.Text = $"⏳ Xong bước {i + 1}/{config.Items.Count}. Nghỉ {config.DelayBetweenLinksSec}s trước khi mở link tiếp theo...";
+                        await Task.Delay(config.DelayBetweenLinksSec * 1000, token);
+                    }
+                }
+
+                if (!config.LoopContinuous)
+                {
+                    break;
+                }
+
+                loopCount++;
+            }
+
+            TxtAutoStatus.Text = $"✅ Hoàn tất kịch bản! Đã xem {_totalViewedCount} video, thả {_totalLikedCount} ❤️.";
         }
     }
 }

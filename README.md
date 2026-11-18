@@ -1,6 +1,6 @@
-# Multi-Account Grid Browser (Trình duyệt đa tài khoản Google, YouTube & TikTok Multi-Tab)
+# Multi-Account Grid Browser (Trình duyệt đa tài khoản Google, YouTube, TikTok, Facebook & Instagram)
 
-Ứng dụng Windows C# WPF sử dụng **Microsoft Edge WebView2**, kế thừa và hoàn thiện từ các giải pháp kiến trúc của các repository mã nguồn mở hàng đầu trên GitHub (`light-browser`, `splitbrowser`, `Prism-Browser`). Cho phép chia màn hình linh hoạt từ **1, 2, 4, 6 đến 8 ô trình duyệt độc lập hoàn toàn**, hỗ trợ đăng nhập nhiều tài khoản Google cùng lúc mà không bị trùng session hay bị Google chặn, tích hợp hệ thống **Dual-Tab (Mỗi ô 2 Tab YouTube + TikTok)**, thanh công cụ tự động hóa lướt/thả tym YouTube Shorts và **tính năng Mute toàn bộ âm thanh ứng dụng**.
+Ứng dụng Windows C# WPF sử dụng **Microsoft Edge WebView2**, kế thừa và hoàn thiện từ các giải pháp kiến trúc của các repository mã nguồn mở hàng đầu trên GitHub (`light-browser`, `splitbrowser`, `Prism-Browser`). Cho phép chia màn hình linh hoạt từ **1, 2, 4, 6 đến 8 ô trình duyệt độc lập hoàn toàn**, hỗ trợ đăng nhập nhiều tài khoản Google cùng lúc mà không bị trùng session hay bị Google chặn, tích hợp hệ thống **Dual-Tab (Mỗi ô 2 Tab YouTube + TikTok)**, công cụ **Kịch Bản Xem Lần Lượt Đa Nền Tảng (YouTube Shorts, YouTube Video Dài, TikTok, Facebook Reels/Video, Instagram Reels)**, thanh công cụ tự động hóa lướt/thả tym và **tính năng Mute toàn bộ âm thanh ứng dụng**.
 
 ---
 
@@ -14,9 +14,37 @@
 
 ---
 
+## 🎬 Tính năng Kịch Bản Xem Lần Lượt Đa Nền Tảng (Sequence Automation)
+
+Nhấn nút **`🎬 Xem Lần Lượt`** trên thanh công cụ góc trên để mở bảng quản lý kịch bản:
+
+### 1. Tự động nhận diện nền tảng & loại video thông minh
+* Chỉ cần dán đường link (URL), hệ thống sẽ tự động nhận diện và gán cơ chế xử lý tương ứng:
+  * **🔴 YouTube Shorts:** Tự động mở player Shorts, bấm nút điều hướng hoặc dispatch phím, thả tym chuẩn `aria-pressed`.
+  * **📺 YouTube Video Dài (Master):** Tự động phát, bỏ qua nút quảng cáo (Skip Ad) nếu có, theo dõi xem hết video (`duration`).
+  * **🎵 TikTok Video / Kênh:** Tự động mở player TikTok, dispatch phím lướt mượt mà, thả tym icon.
+  * **📘 Facebook Reels / Video:** Tự động phát video Reels trên Facebook, cuộn và bấm Thích/Like.
+  * **📷 Instagram Reels:** Tự động phát Reels Instagram và tương tác thả tym.
+
+### 2. Chiến lược cuộn video linh hoạt
+* **⬇️ Lướt từ trên xuống (Mới nhất ➔ Cũ):** Bắt đầu xem từ video đầu tiên trên trang và lướt xuống dần.
+* **⬆️ Cuộn xuống đáy rồi lướt lên (Cũ nhất ➔ Mới):** Tự động cuộn load toàn bộ danh sách trang xuống tận đáy, mở video cũ nhất và lướt ngược lên trên.
+
+### 3. Kiểm soát thời lượng xem thông minh (Smart Video Duration)
+* **⏱️ Xem hết video (Full Duration):** Quét trực tiếp thẻ HTML5 `<video>` để lấy độ dài thực tế (`v.duration`) và tự động chờ đến khi xem hết toàn bộ video mới next.
+* **⌛ Xem cố định X giây:** Đặt số giây cố định cần dừng xem mỗi video.
+* **🎲 Xem ngẫu nhiên (Min - Max giây):** Xem trong khoảng ngẫu nhiên mô phỏng thói quen người dùng thật.
+
+### 4. Chạy tuần tự và xoay vòng liên tục
+* Thiết lập số video cần xem ở mỗi link (ví dụ: xem 5 video Shorts kênh A ➔ chuyển sang lướt 3 video TikTok ➔ chuyển sang xem 1 video dài YouTube kênh B).
+* Hỗ trợ chế độ **🔁 Lặp lại kịch bản liên tục** qua tất cả các liên kết trong danh sách.
+* Đồng bộ thực thi đồng loạt trên **toàn bộ 2, 4, 6 hoặc 8 cửa sổ** đang hiển thị.
+
+---
+
 ## ⚙️ Cài đặt số lượng cửa sổ (2, 4, 6, 8 Cửa Sổ) & Thông số mặc định
 
-* Nhấn nút **`⚙️ Cài đặt`** trên thanh công cụ góc trên bên phải để mở hộp thoại cài đặt:
+* Nhấn nút **`⚙️ Cài đặt`** trên thanh công cụ góc trên bên phải:
   * **Chọn số lượng cửa sổ:**
     * **2 Cửa Sổ:** Bố cục 1 hàng x 2 cột (1x2).
     * **4 Cửa Sổ:** Bố cục 2 hàng x 2 cột (2x2) [Mặc định].
@@ -25,7 +53,7 @@
   * **Tùy chỉnh URL mục tiêu:** Cài đặt kênh YouTube Shorts và trang web TikTok mặc định khi khởi động.
   * **Thông số Auto Shorts:** Tùy chỉnh số giây xem video mặc định và bật/tắt tự động thả tym.
 * Cấu hình được tự động lưu vào file **`settings.json`** và áp dụng ngay lập tức mà không cần khởi động lại ứng dụng.
-* Bạn cũng có thể chuyển nhanh số lượng cửa sổ bằng các nút chọn trực tiếp trên thanh công cụ: `[2 Ô (1x2)]` `[4 Ô (2x2)]` `[6 Ô (2x3)]` `[8 Ô (2x4)]` `[1 Ô]`.
+* Chuyển đổi nhanh 1-click trực tiếp trên thanh công cụ: `[2 Ô (1x2)]` `[4 Ô (2x2)]` `[6 Ô (2x3)]` `[8 Ô (2x4)]` `[1 Ô]`.
 
 ---
 
@@ -46,25 +74,11 @@ Trong mỗi ô (mỗi tài khoản) hiện tại được trang bị thanh quả
 
 1. **🔴 Tab 1 (YouTube):** Mặc định mở kênh YouTube của bạn (`@lam-kid-studio/shorts`) với tài khoản Google tương ứng.
 2. **🎵 Tab 2 (TikTok):** Mặc định mở trang `tiktok.com` để chạy song song tài khoản TikTok.
-3. **🪟 Nút "Chia đôi 2 Tab":**
-   * Cho phép chia đôi không gian trong ô đó thành 2 nửa để bạn nhìn thấy và thao tác cả YouTube lẫn TikTok cùng một lúc!
+3. **🪟 Nút "Chia đôi 2 Tab":** Cho phép chia đôi không gian trong ô đó thành 2 nửa để nhìn thấy và thao tác cả YouTube lẫn TikTok cùng một lúc.
 4. **Nút điều khiển hàng loạt trên thanh Global (Góc trên bên phải):**
    * **🔴 Tất cả Tab 1:** Tất cả các ô đồng loạt chuyển sang xem Tab YouTube.
    * **🎵 Tất cả Tab 2:** Tất cả các ô đồng loạt chuyển sang xem Tab TikTok.
-   * **🪟 Chia đôi 2 Tab:** Bật chế độ chia đôi song song cả YouTube và TikTok trên tất cả các ô (hiển thị cùng lúc lên đến 16 khung trình duyệt).
-
----
-
-## ⚡ Tính năng Tự động hóa YouTube Shorts (Automation Toolbar)
-
-1. **❤️ Tự động kiểm tra & Thả Tym (Auto-Like):**
-   * Quét nút Like của video Short trên Tab 1. Nếu chưa có tym -> tự động thả tym. Nếu đã có -> bỏ qua.
-2. **⏱️ Cài đặt thời gian xem (Delay Seconds):**
-   * Cho phép tùy chỉnh số giây dừng lại xem video trước khi lướt (mặc định là `8` giây).
-3. **🔄 Hướng lướt (Direction):**
-   * Lướt xuống (Next) hoặc lướt lên (Prev).
-4. **▶ BẮT ĐẦU AUTO:**
-   * Tự động mở Shorts, thả tym và lướt liên tục trên tất cả các tài khoản đang hiển thị cùng lúc.
+   * **🪟 Chia đôi 2 Tab:** Bật chế độ chia đôi song song cả YouTube và TikTok trên tất cả các ô.
 
 ---
 

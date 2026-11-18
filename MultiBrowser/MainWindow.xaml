@@ -128,6 +128,11 @@
                             Padding="7,5" Margin="2,0" Background="#33333D" Foreground="#E4E4E7" BorderThickness="0" 
                             FontWeight="Medium" FontSize="11" Cursor="Hand"/>
 
+                    <!-- Playlist / Campaign Button -->
+                    <Button Content="🎬 Xem Lần Lượt" ToolTip="Quản lý và thiết lập Kịch Bản Xem Lần Lượt (YouTube ➔ TikTok ➔ Facebook ➔ ...)" Click="BtnOpenPlaylist_Click"
+                            Padding="8,5" Margin="2,0" Background="#9333EA" Foreground="White" BorderThickness="0" 
+                            FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+
                     <!-- Settings Button -->
                     <Button Content="⚙️ Cài đặt" ToolTip="Cài đặt số lượng cửa sổ (2, 4, 6, 8) và thông số hệ thống" Click="BtnSettings_Click"
                             Padding="8,5" Margin="2,0" Background="#4F46E5" Foreground="White" BorderThickness="0" 
@@ -177,6 +182,11 @@
                               Foreground="#F472B6" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="8,0,6,0" Cursor="Hand"/>
 
                     <!-- Start & Stop Automation -->
+                    <Button x:Name="BtnStartPlaylist" Content="🎬 CHẠY KỊCH BẢN" ToolTip="Bắt đầu chạy kịch bản xem lần lượt qua các liên kết đã cấu hình"
+                            Click="BtnStartPlaylist_Click"
+                            Padding="10,4" Margin="2,0" Background="#9333EA" Foreground="White" BorderThickness="0" 
+                            FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+
                     <Button x:Name="BtnStartAutoWatch" Content="▶ BẮT ĐẦU AUTO" ToolTip="Tự động kiểm tra tym, chờ X giây rồi lướt sang video tiếp theo"
                             Click="BtnStartAutoWatch_Click"
                             Padding="10,4" Margin="3,0" Background="#DB2777" Foreground="White" BorderThickness="0" 
