@@ -1114,7 +1114,7 @@ namespace MultiBrowser
         /// video gợi ý của người khác và mỗi tài khoản gợi ý một khác).
         /// Lưu ý: ExecuteScriptAsync không chờ Promise nên script chạy nền và C# thăm dò cờ hoàn tất.
         /// </summary>
-        public async Task<List<string>> CollectTikTokProfileVideoLinksAsync(CancellationToken token, int maxWaitSec = 180)
+        public async Task<List<string>> CollectTikTokProfileVideoLinksAsync(CancellationToken token, int maxWaitSec = 180, bool youtubeShorts = false)
         {
             var result = new List<string>();
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return result;
@@ -1126,11 +1126,12 @@ namespace MultiBrowser
                 const profilePath = window.location.pathname.replace(/\/+$/, '');
                 const seen = new Set();
                 const collect = () => {
-                    document.querySelectorAll('a[href*=""/video/""]').forEach(a => {
+                    document.querySelectorAll('a[href*=""__SEG__""]').forEach(a => {
                         try {
                             const u = new URL(a.href, window.location.origin);
                             const p = u.pathname.replace(/\/+$/, '');
-                            if (!p.toLowerCase().startsWith(profilePath.toLowerCase() + '/video/')) return;
+                            if (!__YT__ && !p.toLowerCase().startsWith(profilePath.toLowerCase() + '/video/')) return;
+                            if (__YT__ && !/^\/shorts\/[A-Za-z0-9_-]+$/.test(p)) return;
                             const clean = u.origin + p;
                             if (!seen.has(clean)) { seen.add(clean); window.__ttLinks.push(clean); }
                         } catch (e) {}
@@ -1153,9 +1154,13 @@ namespace MultiBrowser
                 return 'STARTED';
             })();";
 
+            startScript = startScript
+                .Replace("__SEG__", youtubeShorts ? "/shorts/" : "/video/")
+                .Replace("__YT__", youtubeShorts ? "true" : "false");
+
             try
             {
-                TxtStatus.Text = "⏳ Đang quét danh sách video của kênh TikTok...";
+                TxtStatus.Text = youtubeShorts ? "⏳ Đang quét danh sách Shorts của kênh YouTube..." : "⏳ Đang quét danh sách video của kênh TikTok...";
                 await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(startScript);
 
                 for (int s = 0; s < maxWaitSec; s++)

@@ -587,6 +587,15 @@ namespace MultiBrowser
             return path.StartsWith("@") && !path.Contains('/');
         }
 
+        private static bool IsYouTubeShortsChannelUrl(string url)
+        {
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (!uri.Host.EndsWith("youtube.com", StringComparison.OrdinalIgnoreCase)) return false;
+            var parts = uri.AbsolutePath.Trim('/').Split('/');
+            return (parts.Length == 2 && parts[0].StartsWith("@") && parts[1].Equals("shorts", StringComparison.OrdinalIgnoreCase))
+                || (parts.Length == 3 && parts[0].Equals("channel", StringComparison.OrdinalIgnoreCase) && parts[2].Equals("shorts", StringComparison.OrdinalIgnoreCase));
+        }
+
         private async Task RunPlaylistCampaignAsync(PlaylistConfig config, CancellationToken token)
         {
             if (!config.Items.Any())
@@ -627,10 +636,11 @@ namespace MultiBrowser
                     // TikTok kênh: lấy danh sách link video một lần rồi mở lần lượt từng link cho cả các ô,
                     // để các ô luôn cùng một video và đi đúng tới video cuối (không dựa vào nút "next"/gợi ý của TikTok).
                     List<string>? directLinks = null;
-                    if (step.Platform == PlatformType.TikTok && IsTikTokProfileUrl(step.Url))
+                    bool isYtShortsChannel = step.Platform == PlatformType.YouTubeShorts && IsYouTubeShortsChannelUrl(step.Url);
+                    if ((step.Platform == PlatformType.TikTok && IsTikTokProfileUrl(step.Url)) || isYtShortsChannel)
                     {
-                        TxtAutoStatus.Text = "⏳ Đang quét danh sách video của kênh TikTok...";
-                        var found = await activePanes[0].CollectTikTokProfileVideoLinksAsync(token);
+                        TxtAutoStatus.Text = isYtShortsChannel ? "⏳ Đang quét danh sách Shorts của kênh YouTube..." : "⏳ Đang quét danh sách video của kênh TikTok...";
+                        var found = await activePanes[0].CollectTikTokProfileVideoLinksAsync(token, 180, isYtShortsChannel);
                         if (found.Count > 0)
                         {
                             if (step.Strategy == ScrollStrategy.BottomToTop) found.Reverse();
