@@ -652,6 +652,11 @@ namespace MultiBrowser
 
                         Interlocked.Increment(ref _totalViewedCount);
 
+                        // Giữ video (loop) ngay từ đầu để autoplay không trôi sang video khác, làm các ô bị lệch nhau.
+                        // Với FullVideoDuration: video lặp nên không còn 'ended'; vòng chờ bên dưới vẫn thoát được nhờ
+                        // currentTime sát cuối hoặc mốc dự phòng (duration + 2s).
+                        await Task.WhenAll(activePanes.Select(p => p.HoldCurrentVideoAsync()));
+
                         // Thời lượng xem
                         if (step.DurationMode == WatchDurationMode.FullVideoDuration)
                         {
@@ -740,6 +745,7 @@ namespace MultiBrowser
                         // Next sang video tiếp theo
                         if (vIdx < targetCount)
                         {
+                            await Task.WhenAll(activePanes.Select(p => p.ReleaseCurrentVideoAsync()));
                             string prevUrl = activePanes[0].CurrentUrl;
                             TxtAutoStatus.Text = $"⏭️ Đang lướt sang video tiếp theo ({direction})...";
                             await Task.WhenAll(activePanes.Select(p => p.ScrollPlatformAsync(step.Platform, direction)));
@@ -758,6 +764,12 @@ namespace MultiBrowser
                                 }
                             }
                         }
+                    }
+
+                    // Xong bước: giữ nguyên video cuối cùng trên mọi ô (kể cả chế độ FullVideoDuration)
+                    if (activePanes.Any())
+                    {
+                        await Task.WhenAll(activePanes.Select(p => p.HoldCurrentVideoAsync()));
                     }
 
                     // Nghỉ giữa các bước liên kết

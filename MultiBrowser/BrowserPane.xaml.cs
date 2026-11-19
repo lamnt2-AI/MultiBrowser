@@ -682,6 +682,41 @@ namespace MultiBrowser
             await ScrollShortAsync("down");
         }
 
+        // Giữ video hiện tại: bật loop và định kỳ ép lại để YouTube/TikTok không tự chuyển sang video kế
+        // (autoplay next) làm các tài khoản bị lệch nhau sau khi kịch bản đã chọn xong video.
+        private const string HoldVideoScript = @"
+            (function() {
+                if (window.__holdVideoTimer) clearInterval(window.__holdVideoTimer);
+                const apply = () => {
+                    document.querySelectorAll('video').forEach(v => {
+                        if (!v.loop) v.loop = true;
+                        if (v.ended) { try { v.currentTime = 0; v.play().catch(()=>{}); } catch(e){} }
+                    });
+                };
+                apply();
+                window.__holdVideoTimer = setInterval(apply, 400);
+                return 'HOLD_ON';
+            })();";
+
+        private const string ReleaseVideoScript = @"
+            (function() {
+                if (window.__holdVideoTimer) { clearInterval(window.__holdVideoTimer); window.__holdVideoTimer = null; }
+                document.querySelectorAll('video').forEach(v => { v.loop = false; });
+                return 'HOLD_OFF';
+            })();";
+
+        public async Task HoldCurrentVideoAsync()
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return;
+            try { await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(HoldVideoScript); } catch { }
+        }
+
+        public async Task ReleaseCurrentVideoAsync()
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return;
+            try { await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(ReleaseVideoScript); } catch { }
+        }
+
         public async Task StopAutoScrollAsync()
         {
             if (!_isInitialized) return;
@@ -689,9 +724,9 @@ namespace MultiBrowser
             try
             {
                 if (BrowserControl1.CoreWebView2 != null)
-                    await BrowserControl1.CoreWebView2.ExecuteScriptAsync("window.__autoScrollActive = false;");
+                    await BrowserControl1.CoreWebView2.ExecuteScriptAsync("window.__autoScrollActive = false;" + ReleaseVideoScript);
                 if (BrowserControl2.CoreWebView2 != null)
-                    await BrowserControl2.CoreWebView2.ExecuteScriptAsync("window.__autoScrollActive = false;");
+                    await BrowserControl2.CoreWebView2.ExecuteScriptAsync("window.__autoScrollActive = false;" + ReleaseVideoScript);
                 TxtStatus.Text = "Đã dừng tự động cuộn";
             }
             catch { }
