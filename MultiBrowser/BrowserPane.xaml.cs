@@ -1187,9 +1187,35 @@ namespace MultiBrowser
         }
 
         /// <summary>
+        /// Bấm vào thumbnail của video có đường dẫn khớp (ngay trong trang kênh), giống người dùng thật,
+        /// để trình phát mở trong ngữ cảnh của kênh thay vì mở thẳng link video.
+        /// </summary>
+        public async Task<bool> ClickGridVideoAsync(string videoUrl)
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
+            try
+            {
+                string path = new Uri(videoUrl).AbsolutePath.TrimEnd('/');
+                string js = @"
+                (function() {
+                    const want = " + System.Text.Json.JsonSerializer.Serialize(path) + @";
+                    const links = Array.from(document.querySelectorAll('a[href]'));
+                    const a = links.find(x => { try { return new URL(x.href, location.origin).pathname.replace(/\/+$/, '') === want; } catch (e) { return false; } });
+                    if (!a) return 'NOT_FOUND';
+                    a.scrollIntoView({ block: 'center' });
+                    a.click();
+                    return 'CLICKED';
+                })();";
+                var res = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(js);
+                return res != null && res.Contains("CLICKED");
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
         /// Lăn chuột thật (qua DevTools Protocol, sự kiện "trusted") xuống một nấc như người dùng, chia nhiều bước nhỏ.
         /// </summary>
-        public async Task HumanScrollNextAsync()
+        public async Task HumanScrollNextAsync(bool singleNotch = false)
         {
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return;
             try
@@ -1201,10 +1227,23 @@ namespace MultiBrowser
                 double x = w * (0.45 + rnd.NextDouble() * 0.1);
                 double y = h * (0.45 + rnd.NextDouble() * 0.1);
 
-                int steps = rnd.Next(3, 6);
+                if (singleNotch)
+                {
+                    // YouTube Shorts: lăn chuột không ổn định (đứng yên hoặc nhảy quá), dùng phím mũi tên xuống như người dùng thật:
+                    // mỗi lần bấm chuyển đúng 1 video.
+                    string down = System.Text.Json.JsonSerializer.Serialize(new { type = "rawKeyDown", key = "ArrowDown", code = "ArrowDown", windowsVirtualKeyCode = 40, nativeVirtualKeyCode = 40 });
+                    string up = System.Text.Json.JsonSerializer.Serialize(new { type = "keyUp", key = "ArrowDown", code = "ArrowDown", windowsVirtualKeyCode = 40, nativeVirtualKeyCode = 40 });
+                    await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", down);
+                    await Task.Delay(rnd.Next(50, 120));
+                    await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", up);
+                    return;
+                }
+
+                // YouTube Shorts: mỗi cú lăn chỉ sang 1 video, lăn nhiều nấc sẽ nhảy quá (vượt 1-2 video)
+                int steps = singleNotch ? 1 : rnd.Next(3, 6);
                 for (int s = 0; s < steps; s++)
                 {
-                    int delta = rnd.Next(120, 260);
+                    int delta = singleNotch ? rnd.Next(120, 200) : rnd.Next(120, 260);
                     string json = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         type = "mouseWheel",

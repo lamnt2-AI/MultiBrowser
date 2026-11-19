@@ -571,6 +571,7 @@ namespace MultiBrowser
 
         // Trang kênh TikTok dạng https://www.tiktok.com/@name (không phải link một video cụ thể)
         private string _lastLikeReport = "";
+        private string _lastScrollReport = "";
 
         // So khớp URL video theo đường dẫn (bỏ query/fragment, không phân biệt hoa thường)
         private static bool UrlMatchesVideo(string current, string expected)
@@ -684,8 +685,25 @@ namespace MultiBrowser
                             if (vIdx == 1)
                             {
                                 TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Mở video 1/{targetCount} của kênh...";
-                                foreach (var pane in activePanes) pane.Navigate(videoUrl);
-                                await Task.Delay(3500, token);
+                                if (isYtShortsChannel)
+                                {
+                                    // Bấm vào video đầu ngay trong trang kênh (không mở thẳng link); ô nào không bấm được/không vào đúng video thì mở link dự phòng
+                                    var clickRes = await Task.WhenAll(activePanes.Select(p => p.ClickGridVideoAsync(videoUrl)));
+                                    await Task.Delay(3500, token);
+                                    bool fixedAny = false;
+                                    int openedByClick = activePanes.Count(p => UrlMatchesVideo(p.CurrentUrl, videoUrl));
+                                    foreach (var pane in activePanes)
+                                    {
+                                        if (!UrlMatchesVideo(pane.CurrentUrl, videoUrl)) { pane.Navigate(videoUrl); fixedAny = true; }
+                                    }
+                                    _lastScrollReport = $"video 1: bấm từ lưới kênh {openedByClick}/{activePanes.Count} (bấm được {clickRes.Count(r => r)}), phải mở link {activePanes.Count - openedByClick}";
+                                    if (fixedAny) await Task.Delay(3500, token);
+                                }
+                                else
+                                {
+                                    foreach (var pane in activePanes) pane.Navigate(videoUrl);
+                                    await Task.Delay(3500, token);
+                                }
                             }
                             else
                             {
@@ -694,11 +712,26 @@ namespace MultiBrowser
                                 await Task.WhenAll(activePanes.Select(async p =>
                                 {
                                     await Task.Delay(Random.Shared.Next(200, 1500), token);
-                                    await p.HumanScrollNextAsync();
+                                    await p.HumanScrollNextAsync(isYtShortsChannel);
                                 }));
                                 await Task.Delay(3000, token);
 
-                                // Đối chiếu: ô nào không ở đúng video kế tiếp của kênh (TikTok nhảy sang video gợi ý) thì đưa về đúng link
+                                // Ô nào vẫn đứng nguyên ở video cũ (cú lăn chưa đủ mạnh) thì lăn thêm, tối đa 2 lần, trước khi dùng link dự phòng
+                                string prevUrl = directLinks[vIdx - 2];
+                                for (int retry = 0; retry < 2; retry++)
+                                {
+                                    var stuck = activePanes.Where(p => UrlMatchesVideo(p.CurrentUrl, prevUrl)).ToList();
+                                    if (stuck.Count == 0) break;
+                                    await Task.WhenAll(stuck.Select(async p =>
+                                    {
+                                        await Task.Delay(Random.Shared.Next(200, 900), token);
+                                        await p.HumanScrollNextAsync(isYtShortsChannel);
+                                    }));
+                                    await Task.Delay(2500, token);
+                                }
+
+                                // Đối chiếu: ô nào không ở đúng video kế tiếp của kênh (nhảy quá/sang video gợi ý) thì đưa về đúng link
+                                int scrolledOk = activePanes.Count(p => UrlMatchesVideo(p.CurrentUrl, videoUrl));
                                 bool corrected = false;
                                 foreach (var pane in activePanes)
                                 {
@@ -708,6 +741,7 @@ namespace MultiBrowser
                                         corrected = true;
                                     }
                                 }
+                                _lastScrollReport = $"video {vIdx}: cuộn thật {scrolledOk}/{activePanes.Count}, phải mở link {activePanes.Count - scrolledOk}";
                                 if (corrected) await Task.Delay(3500, token);
                             }
                             await Task.WhenAll(activePanes.Select(p => p.EnsurePlayerStartedAsync(step.Platform)));
@@ -891,6 +925,7 @@ namespace MultiBrowser
                 statusText = TxtAutoStatus.Text,
                 isAutomationRunning = _autoLoopCts != null,
                 likeReport = _lastLikeReport,
+                scrollReport = _lastScrollReport,
                 panes = _panes.Select(p => new
                 {
                     profileId = p.ProfileId,
