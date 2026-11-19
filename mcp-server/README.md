@@ -25,6 +25,14 @@ Giao thức **Model Context Protocol (MCP)** tiêu chuẩn cho phép các AI Age
 
 ## 🚀 Cách cấu hình MCP Server cho AI Agent
 
+> Thay `<THƯ_MỤC_REPO>` bằng đường dẫn tới thư mục repo trên máy bạn (nơi chứa thư mục `mcp-server`). MCP server tự tìm `port.txt` và `api_token.txt` do app MultiBrowser tạo ra, không cần cấu hình thêm. App phải đang chạy.
+
+### 0. Claude Code (CLI) — nhanh nhất
+Chạy ngay trong thư mục repo, không cần ghi đường dẫn tuyệt đối:
+```bash
+claude mcp add multibrowser -- node mcp-server/index.js
+```
+
 ### 1. Trong Antigravity IDE (`antigravity.json` hoặc MCP Config)
 Thêm vào cấu hình MCP Server:
 ```json
@@ -32,7 +40,7 @@ Thêm vào cấu hình MCP Server:
   "mcpServers": {
     "multibrowser": {
       "command": "node",
-      "args": ["d:/tools của tôi/MultiBrowser/mcp-server/index.js"]
+      "args": ["<THƯ_MỤC_REPO>/mcp-server/index.js"]
     }
   }
 }
@@ -42,7 +50,7 @@ Thêm vào cấu hình MCP Server:
 ```toml
 [mcp_servers.multibrowser]
 command = "node"
-args = ["d:/tools của tôi/MultiBrowser/mcp-server/index.js"]
+args = ["<THƯ_MỤC_REPO>/mcp-server/index.js"]
 ```
 
 ### 3. Trong Claude Code / Claude Desktop (`claude_desktop_config.json`)
@@ -51,7 +59,7 @@ args = ["d:/tools của tôi/MultiBrowser/mcp-server/index.js"]
   "mcpServers": {
     "multibrowser": {
       "command": "node",
-      "args": ["d:/tools của tôi/MultiBrowser/mcp-server/index.js"]
+      "args": ["<THƯ_MỤC_REPO>/mcp-server/index.js"]
     }
   }
 }
