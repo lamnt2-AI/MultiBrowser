@@ -247,6 +247,18 @@ const TOOLS = [
     }
   },
   {
+    name: 'multibrowser_like_debug',
+    description: 'Chẩn đoán nút tym (TikTok) của MỘT ô/acc theo profileId: nút có thấy không, đã đỏ chưa, có popup đăng nhập chặn không. Đặt click=true để bấm tym acc đó rồi đọc lại trạng thái.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        profileId: { type: 'integer', description: 'ID acc/ô cần kiểm tra (1-8, xem profileId trong multibrowser_get_status)' },
+        click: { type: 'boolean', default: false, description: 'true: bấm tym rồi trả về trạng thái trước/sau khi bấm' }
+      },
+      required: ['profileId']
+    }
+  },
+  {
     name: 'multibrowser_stop',
     description: 'Dừng ngay lập tức toàn bộ quá trình tự động hóa / lướt video đang chạy trên app MultiBrowser.',
     inputSchema: {
@@ -295,6 +307,9 @@ async function handleToolCall(name, args) {
       } else {
         return await callApi('/api/layout', 'POST', { action: args.action });
       }
+    }
+    case 'multibrowser_like_debug': {
+      return await callApi('/api/like', 'POST', { profileId: args.profileId, click: !!args.click });
     }
     case 'multibrowser_stop': {
       const res = await callApi('/api/playlist/stop', 'POST', {});

@@ -569,6 +569,24 @@ namespace MultiBrowser
             }
         }
 
+        // Trang kênh TikTok dạng https://www.tiktok.com/@name (không phải link một video cụ thể)
+        private string _lastLikeReport = "";
+
+        // So khớp URL video theo đường dẫn (bỏ query/fragment, không phân biệt hoa thường)
+        private static bool UrlMatchesVideo(string current, string expected)
+        {
+            if (!Uri.TryCreate(current, UriKind.Absolute, out var a) || !Uri.TryCreate(expected, UriKind.Absolute, out var b)) return false;
+            return string.Equals(a.AbsolutePath.TrimEnd('/'), b.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsTikTokProfileUrl(string url)
+        {
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (!uri.Host.EndsWith("tiktok.com", StringComparison.OrdinalIgnoreCase)) return false;
+            var path = uri.AbsolutePath.Trim('/');
+            return path.StartsWith("@") && !path.Contains('/');
+        }
+
         private async Task RunPlaylistCampaignAsync(PlaylistConfig config, CancellationToken token)
         {
             if (!config.Items.Any())
@@ -606,9 +624,27 @@ namespace MultiBrowser
                     // Chờ nạp trang ban đầu
                     await Task.Delay(3500, token);
 
+                    // TikTok kênh: lấy danh sách link video một lần rồi mở lần lượt từng link cho cả các ô,
+                    // để các ô luôn cùng một video và đi đúng tới video cuối (không dựa vào nút "next"/gợi ý của TikTok).
+                    List<string>? directLinks = null;
+                    if (step.Platform == PlatformType.TikTok && IsTikTokProfileUrl(step.Url))
+                    {
+                        TxtAutoStatus.Text = "⏳ Đang quét danh sách video của kênh TikTok...";
+                        var found = await activePanes[0].CollectTikTokProfileVideoLinksAsync(token);
+                        if (found.Count > 0)
+                        {
+                            if (step.Strategy == ScrollStrategy.BottomToTop) found.Reverse();
+                            directLinks = found;
+                        }
+                    }
+
                     // 2. Chiến lược cuộn
                     string direction = "down";
-                    if (step.Strategy == ScrollStrategy.BottomToTop)
+                    if (directLinks != null)
+                    {
+                        // Không cần cuộn/click: từng video sẽ được mở trực tiếp ở vòng lặp bên dưới
+                    }
+                    else if (step.Strategy == ScrollStrategy.BottomToTop)
                     {
                         TxtAutoStatus.Text = $"⏳ Đang cuộn xuống đáy trang để bắt đầu từ video cũ nhất...";
                         await Task.WhenAll(activePanes.Select(p => p.AutoScrollToBottomAndClickOldestAsync(step.Platform)));
@@ -623,6 +659,7 @@ namespace MultiBrowser
 
                     // 3. Thực thi xem lần lượt N video trong bước này
                     int targetCount = Math.Max(1, step.VideoCount);
+                    if (directLinks != null) targetCount = Math.Min(targetCount, directLinks.Count);
                     for (int vIdx = 1; vIdx <= targetCount; vIdx++)
                     {
                         token.ThrowIfCancellationRequested();
@@ -631,17 +668,56 @@ namespace MultiBrowser
                         activePanes = GetActivePanes().ToList();
                         if (!activePanes.Any()) break;
 
+                        if (directLinks != null)
+                        {
+                            string videoUrl = directLinks[vIdx - 1];
+                            if (vIdx == 1)
+                            {
+                                TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Mở video 1/{targetCount} của kênh...";
+                                foreach (var pane in activePanes) pane.Navigate(videoUrl);
+                                await Task.Delay(3500, token);
+                            }
+                            else
+                            {
+                                // Cuộn như người thật (lăn chuột thật, mỗi ô lệch nhịp một chút)
+                                TxtAutoStatus.Text = $"⏭️ [Bước {i + 1}/{config.Items.Count}] Cuộn sang video {vIdx}/{targetCount}...";
+                                await Task.WhenAll(activePanes.Select(async p =>
+                                {
+                                    await Task.Delay(Random.Shared.Next(200, 1500), token);
+                                    await p.HumanScrollNextAsync();
+                                }));
+                                await Task.Delay(3000, token);
+
+                                // Đối chiếu: ô nào không ở đúng video kế tiếp của kênh (TikTok nhảy sang video gợi ý) thì đưa về đúng link
+                                bool corrected = false;
+                                foreach (var pane in activePanes)
+                                {
+                                    if (!UrlMatchesVideo(pane.CurrentUrl, videoUrl))
+                                    {
+                                        pane.Navigate(videoUrl);
+                                        corrected = true;
+                                    }
+                                }
+                                if (corrected) await Task.Delay(3500, token);
+                            }
+                            await Task.WhenAll(activePanes.Select(p => p.EnsurePlayerStartedAsync(step.Platform)));
+                            await Task.Delay(1500, token);
+                        }
+
                         // Thả tym nếu bật
                         if (step.AutoLike)
                         {
-                            await Task.WhenAll(activePanes.Select(async p =>
+                            // Tym có kiểm chứng (đọc lại nút, chưa đỏ thì bấm lại, tối đa 4 lần) và ghi lại kết quả từng acc để dễ tìm lỗi
+                            var likeResults = await Task.WhenAll(activePanes.Select(async p =>
                             {
-                                var res = await p.LikeCurrentPlatformAsync(step.Platform);
+                                string res = await p.LikeVerifiedAsync(step.Platform, token);
                                 if (res == "LIKED_SUCCESS")
                                 {
                                     Interlocked.Increment(ref _totalLikedCount);
                                 }
+                                return $"acc{p.ProfileId}={res}";
                             }));
+                            _lastLikeReport = $"video {vIdx}: " + string.Join(", ", likeResults);
                         }
 
                         // Mô phỏng tương tác thêm nếu bật
@@ -743,7 +819,7 @@ namespace MultiBrowser
                         }
 
                         // Next sang video tiếp theo
-                        if (vIdx < targetCount)
+                        if (vIdx < targetCount && directLinks == null)
                         {
                             await Task.WhenAll(activePanes.Select(p => p.ReleaseCurrentVideoAsync()));
                             string prevUrl = activePanes[0].CurrentUrl;
@@ -804,6 +880,7 @@ namespace MultiBrowser
                 isMuteAll = _isMuteAll,
                 statusText = TxtAutoStatus.Text,
                 isAutomationRunning = _autoLoopCts != null,
+                likeReport = _lastLikeReport,
                 panes = _panes.Select(p => new
                 {
                     profileId = p.ProfileId,
@@ -842,6 +919,33 @@ namespace MultiBrowser
                 default:
                     return false;
             }
+        }
+
+        // Chẩn đoán (và tùy chọn bấm) nút tym của một ô theo profileId. Dùng để tìm lỗi tym ở từng acc.
+        public async Task<object> LikeDiagnosticsFromApiAsync(int profileId, bool click)
+        {
+            var pane = _panes.FirstOrDefault(p => p.ProfileId == profileId && p.IsBrowserReady);
+            if (pane == null)
+                return new { success = false, error = $"Không tìm thấy ô sẵn sàng với profileId={profileId}." };
+
+            string before = await pane.GetLikeDiagnosticsAsync();
+            string? clickResult = null;
+            string? after = null;
+            if (click)
+            {
+                clickResult = await pane.LikeCurrentPlatformAsync(PlatformType.TikTok);
+                await Task.Delay(1500);
+                after = await pane.GetLikeDiagnosticsAsync();
+            }
+
+            object? Parse(string? j)
+            {
+                if (j == null) return null;
+                try { return System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(j); }
+                catch { return j; }
+            }
+
+            return new { success = true, profileId, before = Parse(before), clickResult, after = Parse(after) };
         }
 
         public void SetMuteFromApi(bool mute)

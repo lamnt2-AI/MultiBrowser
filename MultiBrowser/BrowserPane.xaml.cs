@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -790,6 +792,91 @@ namespace MultiBrowser
             return new VideoPlaybackState { Found = false };
         }
 
+        /// <summary>
+        /// Chẩn đoán trạng thái nút tym (TikTok) và dấu hiệu chưa đăng nhập / popup chặn trên ô này.
+        /// </summary>
+        public async Task<string> GetLikeDiagnosticsAsync()
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "{\"error\":\"NOT_INITIALIZED\"}";
+
+            string script = @"
+            (function() {
+                const out = { url: location.href };
+                const icon = document.querySelector('[data-e2e=""like-icon""]');
+                const btn = icon ? (icon.closest('button') || icon) : document.querySelector('button[aria-label*=""Like""], button[aria-label*=""Thích""]');
+                out.likeButtonFound = !!btn;
+                if (btn) {
+                    out.ariaLabel = btn.getAttribute('aria-label');
+                    out.ariaPressed = btn.getAttribute('aria-pressed');
+                    const svg = btn.querySelector('svg') || (icon && icon.querySelector && icon.querySelector('svg'));
+                    if (svg) {
+                        const cs = getComputedStyle(svg);
+                        out.svgColor = cs.color;
+                        out.svgFill = cs.fill;
+                        out.svgFillAttr = svg.getAttribute('fill');
+                    }
+                    const countEl = document.querySelector('[data-e2e=""like-count""]');
+                    out.likeCount = countEl ? countEl.textContent : null;
+                    const r = btn.getBoundingClientRect();
+                    out.buttonVisible = r.width > 0 && r.height > 0;
+                }
+                out.loginModalOpen = !!document.querySelector('[data-e2e=""modal-close-inner-button""], #login-modal, [data-e2e=""login-modal""], div[role=""dialog""]');
+                out.loginButtonVisible = !!document.querySelector('[data-e2e=""top-login-button""], [data-e2e=""nav-login-button""], button[data-e2e*=""login""]');
+                out.profileAvatarVisible = !!document.querySelector('[data-e2e=""profile-icon""], [data-e2e=""nav-profile""]');
+                return JSON.stringify(out);
+            })();";
+
+            try
+            {
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(script);
+                if (!string.IsNullOrEmpty(raw) && raw != "null")
+                    return System.Text.Json.JsonSerializer.Deserialize<string>(raw) ?? "{}";
+            }
+            catch (Exception ex)
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
+            }
+            return "{}";
+        }
+
+        /// <summary>
+        /// Tym có kiểm chứng: bấm rồi đọc lại trạng thái nút (TikTok: aria-pressed), chưa đỏ thì bấm lại.
+        /// Lý do: bấm quá sớm lúc trang chưa gắn xong sự kiện thì nút "được bấm" nhưng TikTok không ghi nhận tym.
+        /// </summary>
+        public async Task<string> LikeVerifiedAsync(PlatformType platform, CancellationToken token)
+        {
+            string res = "";
+            bool clicked = false;
+
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                token.ThrowIfCancellationRequested();
+                res = await LikeCurrentPlatformAsync(platform);
+
+                if (res == "ALREADY_LIKED") return clicked ? "LIKED_SUCCESS" : "ALREADY_LIKED";
+
+                if (res == "LIKED_SUCCESS")
+                {
+                    clicked = true;
+                    if (platform != PlatformType.TikTok) return res;
+
+                    await Task.Delay(1200, token);
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(await GetLikeDiagnosticsAsync());
+                        if (doc.RootElement.TryGetProperty("ariaPressed", out var p) && p.GetString() == "true")
+                            return "LIKED_SUCCESS";
+                    }
+                    catch { }
+                    continue; // chưa đỏ: vòng sau LikeCurrentPlatformAsync sẽ kiểm tra rồi bấm lại nếu cần
+                }
+
+                await Task.Delay(1000, token); // chưa thấy nút tym: đợi trang nạp rồi thử lại
+            }
+
+            return clicked ? "LIKE_UNVERIFIED" : res;
+        }
+
         public async Task<string> LikeCurrentPlatformAsync(PlatformType platform)
         {
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return "NOT_INITIALIZED";
@@ -1019,6 +1106,113 @@ namespace MultiBrowser
             {
                 return $"ERROR: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Cuộn hết trang kênh TikTok để nạp toàn bộ video rồi trả về danh sách link video theo thứ tự trên trang
+        /// (mới nhất → cũ nhất). Dùng danh sách này để mở từng link trực tiếp thay vì bấm "next" (TikTok sẽ nhảy sang
+        /// video gợi ý của người khác và mỗi tài khoản gợi ý một khác).
+        /// Lưu ý: ExecuteScriptAsync không chờ Promise nên script chạy nền và C# thăm dò cờ hoàn tất.
+        /// </summary>
+        public async Task<List<string>> CollectTikTokProfileVideoLinksAsync(CancellationToken token, int maxWaitSec = 180)
+        {
+            var result = new List<string>();
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return result;
+
+            string startScript = @"
+            (function() {
+                window.__ttDone = false;
+                window.__ttLinks = [];
+                const profilePath = window.location.pathname.replace(/\/+$/, '');
+                const seen = new Set();
+                const collect = () => {
+                    document.querySelectorAll('a[href*=""/video/""]').forEach(a => {
+                        try {
+                            const u = new URL(a.href, window.location.origin);
+                            const p = u.pathname.replace(/\/+$/, '');
+                            if (!p.toLowerCase().startsWith(profilePath.toLowerCase() + '/video/')) return;
+                            const clean = u.origin + p;
+                            if (!seen.has(clean)) { seen.add(clean); window.__ttLinks.push(clean); }
+                        } catch (e) {}
+                    });
+                };
+                (async function() {
+                    let lastHeight = 0, unchanged = 0, loops = 150;
+                    while (loops-- > 0) {
+                        collect();
+                        const h = document.documentElement.scrollHeight || document.body.scrollHeight;
+                        window.scrollTo({ top: h, behavior: 'smooth' });
+                        await new Promise(r => setTimeout(r, 1200));
+                        const nh = document.documentElement.scrollHeight || document.body.scrollHeight;
+                        if (nh === lastHeight) { if (++unchanged >= 4) break; }
+                        else { unchanged = 0; lastHeight = nh; }
+                    }
+                    collect();
+                    window.__ttDone = true;
+                })();
+                return 'STARTED';
+            })();";
+
+            try
+            {
+                TxtStatus.Text = "⏳ Đang quét danh sách video của kênh TikTok...";
+                await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(startScript);
+
+                for (int s = 0; s < maxWaitSec; s++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    await Task.Delay(1000, token);
+                    var done = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync("window.__ttDone === true");
+                    if (done == "true") break;
+                }
+
+                var raw = await ActiveBrowser.CoreWebView2.ExecuteScriptAsync("JSON.stringify(window.__ttLinks || [])");
+                if (!string.IsNullOrEmpty(raw) && raw != "null")
+                {
+                    string json = System.Text.Json.JsonSerializer.Deserialize<string>(raw) ?? "[]";
+                    var links = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
+                    if (links != null) result.AddRange(links);
+                }
+                await ActiveBrowser.CoreWebView2.ExecuteScriptAsync("window.scrollTo({ top: 0 });");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Lăn chuột thật (qua DevTools Protocol, sự kiện "trusted") xuống một nấc như người dùng, chia nhiều bước nhỏ.
+        /// </summary>
+        public async Task HumanScrollNextAsync()
+        {
+            if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return;
+            try
+            {
+                var core = ActiveBrowser.CoreWebView2;
+                double w = Math.Max(200, ActiveBrowser.ActualWidth);
+                double h = Math.Max(200, ActiveBrowser.ActualHeight);
+                var rnd = Random.Shared;
+                double x = w * (0.45 + rnd.NextDouble() * 0.1);
+                double y = h * (0.45 + rnd.NextDouble() * 0.1);
+
+                int steps = rnd.Next(3, 6);
+                for (int s = 0; s < steps; s++)
+                {
+                    int delta = rnd.Next(120, 260);
+                    string json = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        type = "mouseWheel",
+                        x = (int)x,
+                        y = (int)y,
+                        deltaX = 0,
+                        deltaY = delta
+                    });
+                    await core.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", json);
+                    await Task.Delay(rnd.Next(40, 120));
+                }
+            }
+            catch { }
         }
 
         public async Task<bool> AutoScrollToBottomAndClickOldestAsync(PlatformType platform)

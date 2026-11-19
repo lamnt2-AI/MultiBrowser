@@ -304,6 +304,23 @@ namespace MultiBrowser
                         responseData = new { success = false, error = "Cần truyền danh sách 'links' chứa ít nhất một đường link URL hợp lệ." };
                     }
                 }
+                else if (path == "/api/like" && method == "POST")
+                {
+                    var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(string.IsNullOrWhiteSpace(requestBody) ? "{}" : requestBody);
+                    int profileId = data != null && data.TryGetValue("profileId", out var pidEl) && pidEl.TryGetInt32(out int pid) ? pid : 0;
+                    bool click = data != null && data.TryGetValue("click", out var clickEl) && clickEl.ValueKind == JsonValueKind.True;
+
+                    if (profileId <= 0)
+                    {
+                        res.StatusCode = 400;
+                        responseData = new { success = false, error = "Thiếu hoặc sai tham số 'profileId' (1-8)." };
+                    }
+                    else
+                    {
+                        var likeTask = _mainWindow.Dispatcher.Invoke(() => _mainWindow.LikeDiagnosticsFromApiAsync(profileId, click));
+                        responseData = await likeTask;
+                    }
+                }
                 else if (path == "/api/playlist/stop" && method == "POST")
                 {
                     await _mainWindow.Dispatcher.InvokeAsync(() =>
