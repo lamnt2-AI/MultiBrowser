@@ -49,6 +49,10 @@ namespace MultiBrowser
             ChkAutoLike.IsChecked = _settings.AutoLikeEnabled;
             UpdateLayoutRadioSelection(_currentWindowCount);
 
+            // Mặc định TẮT ÂM khi mở app (bấm nút "Âm thanh" để bật lại khi cần)
+            BtnMuteAll.IsChecked = true;
+            BtnToggleMuteAll_Click(this, new RoutedEventArgs());
+
             // Áp dụng bố cục và khởi tạo các ô được chọn
             await SwitchWindowCountAsync(_currentWindowCount);
         }
