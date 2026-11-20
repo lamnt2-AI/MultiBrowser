@@ -26,9 +26,18 @@ namespace MultiBrowser
         RandomRange        // Xem ngẫu nhiên trong khoảng Min - Max giây
     }
 
+    // Loại danh sách link cần quét từ trang kênh
+    public enum ChannelLinkKind
+    {
+        TikTok,          // /@user  -> các link /video/
+        YouTubeShorts,   // /@kênh/shorts -> các link /shorts/
+        YouTubeLong      // /@kênh/videos -> các link /watch?v= (video dài / master)
+    }
+
     public class VideoPlaybackState
     {
         public bool Found { get; set; } = false;
+        public bool AdShowing { get; set; } = false; // YouTube đang chiếu quảng cáo (chưa phải video chính)
         public double Duration { get; set; } = 0;
         public double CurrentTime { get; set; } = 0;
         public bool Paused { get; set; } = true;

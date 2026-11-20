@@ -691,6 +691,7 @@ namespace MultiBrowser
                 if (window.__holdVideoTimer) clearInterval(window.__holdVideoTimer);
                 const apply = () => {
                     document.querySelectorAll('video').forEach(v => {
+                        if (v.closest && v.closest('.ad-showing')) return; // không loop quảng cáo YouTube, để nó chạy hết/được bỏ qua
                         if (!v.loop) v.loop = true;
                         if (v.ended) { try { v.currentTime = 0; v.play().catch(()=>{}); } catch(e){} }
                     });
@@ -764,8 +765,12 @@ namespace MultiBrowser
                     try { v.play(); } catch(e) {}
                 }
 
+                // Đang chiếu quảng cáo: thời lượng/tiến độ lúc này là của quảng cáo, không phải video chính
+                let adShowing = !!document.querySelector('.html5-video-player.ad-showing');
+
                 return JSON.stringify({
                     found: true,
+                    adShowing: adShowing,
                     duration: (isNaN(v.duration) || v.duration === Infinity) ? 0 : v.duration,
                     currentTime: isNaN(v.currentTime) ? 0 : v.currentTime,
                     paused: v.paused,
@@ -848,7 +853,9 @@ namespace MultiBrowser
             string res = "";
             bool clicked = false;
 
-            for (int attempt = 0; attempt < 4; attempt++)
+            // Trang xem video dài của YouTube dựng khung thông tin (nút tym) chậm hơn video nên cho thử nhiều lần hơn
+            int maxAttempts = platform == PlatformType.YouTubeLong ? 10 : 4;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
                 token.ThrowIfCancellationRequested();
                 res = await LikeCurrentPlatformAsync(platform);
@@ -858,17 +865,20 @@ namespace MultiBrowser
                 if (res == "LIKED_SUCCESS")
                 {
                     clicked = true;
-                    if (platform != PlatformType.TikTok) return res;
+                    if (platform != PlatformType.TikTok && platform != PlatformType.YouTubeLong) return res;
 
                     await Task.Delay(1200, token);
-                    try
+                    if (platform == PlatformType.TikTok)
                     {
-                        using var doc = System.Text.Json.JsonDocument.Parse(await GetLikeDiagnosticsAsync());
-                        if (doc.RootElement.TryGetProperty("ariaPressed", out var p) && p.GetString() == "true")
-                            return "LIKED_SUCCESS";
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(await GetLikeDiagnosticsAsync());
+                            if (doc.RootElement.TryGetProperty("ariaPressed", out var p) && p.GetString() == "true")
+                                return "LIKED_SUCCESS";
+                        }
+                        catch { }
                     }
-                    catch { }
-                    continue; // chưa đỏ: vòng sau LikeCurrentPlatformAsync sẽ kiểm tra rồi bấm lại nếu cần
+                    continue; // chưa xác nhận: vòng sau LikeCurrentPlatformAsync đọc lại aria-pressed (đã tym => ALREADY_LIKED), chưa tym thì bấm lại
                 }
 
                 await Task.Delay(1000, token); // chưa thấy nút tym: đợi trang nạp rồi thử lại
@@ -895,7 +905,7 @@ namespace MultiBrowser
                 }
 
                 // 2. YouTube Long Video
-                let ytLike = document.querySelector('#top-level-buttons-computed ytd-like-button-renderer button, like-button-view-model button, ytd-watch-metadata like-button-view-model button');
+                let ytLike = document.querySelector('ytd-watch-metadata like-button-view-model button, #top-level-buttons-computed ytd-like-button-renderer button, like-button-view-model button');
                 if (ytLike) {
                     if (ytLike.getAttribute('aria-pressed') === 'true') return 'ALREADY_LIKED';
                     ytLike.click();
@@ -1114,7 +1124,7 @@ namespace MultiBrowser
         /// video gợi ý của người khác và mỗi tài khoản gợi ý một khác).
         /// Lưu ý: ExecuteScriptAsync không chờ Promise nên script chạy nền và C# thăm dò cờ hoàn tất.
         /// </summary>
-        public async Task<List<string>> CollectTikTokProfileVideoLinksAsync(CancellationToken token, int maxWaitSec = 180, bool youtubeShorts = false)
+        public async Task<List<string>> CollectTikTokProfileVideoLinksAsync(CancellationToken token, int maxWaitSec = 180, ChannelLinkKind kind = ChannelLinkKind.TikTok)
         {
             var result = new List<string>();
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return result;
@@ -1123,6 +1133,7 @@ namespace MultiBrowser
             (function() {
                 window.__ttDone = false;
                 window.__ttLinks = [];
+                const KIND = '__KIND__';
                 const profilePath = window.location.pathname.replace(/\/+$/, '');
                 const seen = new Set();
                 const collect = () => {
@@ -1130,22 +1141,37 @@ namespace MultiBrowser
                         try {
                             const u = new URL(a.href, window.location.origin);
                             const p = u.pathname.replace(/\/+$/, '');
-                            if (!__YT__ && !p.toLowerCase().startsWith(profilePath.toLowerCase() + '/video/')) return;
-                            if (__YT__ && !/^\/shorts\/[A-Za-z0-9_-]+$/.test(p)) return;
-                            const clean = u.origin + p;
+                            let clean;
+                            if (KIND === 'long') {
+                                // Video dài: /watch?v=ID (chỉ giữ tham số v, bỏ list/t/pp... để mỗi video chỉ có 1 link)
+                                if (p !== '/watch') return;
+                                const id = u.searchParams.get('v');
+                                if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return;
+                                clean = u.origin + '/watch?v=' + id;
+                            } else if (KIND === 'shorts') {
+                                if (!/^\/shorts\/[A-Za-z0-9_-]+$/.test(p)) return;
+                                clean = u.origin + p;
+                            } else {
+                                if (!p.toLowerCase().startsWith(profilePath.toLowerCase() + '/video/')) return;
+                                clean = u.origin + p;
+                            }
                             if (!seen.has(clean)) { seen.add(clean); window.__ttLinks.push(clean); }
                         } catch (e) {}
                     });
                 };
                 (async function() {
-                    let lastHeight = 0, unchanged = 0, loops = 150;
+                    // YouTube nạp thêm video theo từng đợt khá chậm nên chờ lâu hơn trước khi kết luận đã hết
+                    const maxUnchanged = KIND === 'long' ? 6 : 4;
+                    let lastHeight = 0, unchanged = 0, loops = 300, rounds = 0;
                     while (loops-- > 0) {
                         collect();
+                        rounds++;
                         const h = document.documentElement.scrollHeight || document.body.scrollHeight;
                         window.scrollTo({ top: h, behavior: 'smooth' });
                         await new Promise(r => setTimeout(r, 1200));
                         const nh = document.documentElement.scrollHeight || document.body.scrollHeight;
-                        if (nh === lastHeight) { if (++unchanged >= 4) break; }
+                        // Chưa thấy link nào (trang kênh còn đang dựng lưới) thì chưa kết luận là đã hết, đợi tối đa ~18s
+                        if (nh === lastHeight) { if (++unchanged >= maxUnchanged && (window.__ttLinks.length > 0 || rounds >= 15)) break; }
                         else { unchanged = 0; lastHeight = nh; }
                     }
                     collect();
@@ -1155,12 +1181,17 @@ namespace MultiBrowser
             })();";
 
             startScript = startScript
-                .Replace("__SEG__", youtubeShorts ? "/shorts/" : "/video/")
-                .Replace("__YT__", youtubeShorts ? "true" : "false");
+                .Replace("__SEG__", kind switch { ChannelLinkKind.YouTubeShorts => "/shorts/", ChannelLinkKind.YouTubeLong => "/watch?v=", _ => "/video/" })
+                .Replace("__KIND__", kind switch { ChannelLinkKind.YouTubeShorts => "shorts", ChannelLinkKind.YouTubeLong => "long", _ => "tiktok" });
 
             try
             {
-                TxtStatus.Text = youtubeShorts ? "⏳ Đang quét danh sách Shorts của kênh YouTube..." : "⏳ Đang quét danh sách video của kênh TikTok...";
+                TxtStatus.Text = kind switch
+                {
+                    ChannelLinkKind.YouTubeShorts => "⏳ Đang quét danh sách Shorts của kênh YouTube...",
+                    ChannelLinkKind.YouTubeLong => "⏳ Đang quét danh sách video dài của kênh YouTube...",
+                    _ => "⏳ Đang quét danh sách video của kênh TikTok..."
+                };
                 await ActiveBrowser.CoreWebView2.ExecuteScriptAsync(startScript);
 
                 for (int s = 0; s < maxWaitSec; s++)
@@ -1195,12 +1226,22 @@ namespace MultiBrowser
             if (!_isInitialized || ActiveBrowser.CoreWebView2 == null) return false;
             try
             {
-                string path = new Uri(videoUrl).AbsolutePath.TrimEnd('/');
+                var uri = new Uri(videoUrl);
+                string path = uri.AbsolutePath.TrimEnd('/');
+                // Video dài YouTube: mọi video đều có đường dẫn /watch nên phải đối chiếu thêm tham số v
+                string vid = System.Text.RegularExpressions.Regex.Match(uri.Query, @"[?&]v=([^&#]+)").Groups[1].Value;
                 string js = @"
                 (function() {
                     const want = " + System.Text.Json.JsonSerializer.Serialize(path) + @";
-                    const links = Array.from(document.querySelectorAll('a[href]'));
-                    const a = links.find(x => { try { return new URL(x.href, location.origin).pathname.replace(/\/+$/, '') === want; } catch (e) { return false; } });
+                    const wantV = " + System.Text.Json.JsonSerializer.Serialize(vid) + @";
+                    const links = Array.from(document.querySelectorAll('a[href]')).filter(x => {
+                        try {
+                            const u = new URL(x.href, location.origin);
+                            if (u.pathname.replace(/\/+$/, '') !== want) return false;
+                            return !wantV || u.searchParams.get('v') === wantV;
+                        } catch (e) { return false; }
+                    });
+                    const a = links.find(x => x.offsetParent !== null) || links[0];
                     if (!a) return 'NOT_FOUND';
                     a.scrollIntoView({ block: 'center' });
                     a.click();

@@ -581,7 +581,45 @@ namespace MultiBrowser
         private static bool UrlMatchesVideo(string current, string expected)
         {
             if (!Uri.TryCreate(current, UriKind.Absolute, out var a) || !Uri.TryCreate(expected, UriKind.Absolute, out var b)) return false;
-            return string.Equals(a.AbsolutePath.TrimEnd('/'), b.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(a.AbsolutePath.TrimEnd('/'), b.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) return false;
+
+            // Video dài YouTube: mọi video đều có đường dẫn /watch, phân biệt bằng tham số v
+            if (string.Equals(b.AbsolutePath.TrimEnd('/'), "/watch", StringComparison.OrdinalIgnoreCase))
+            {
+                var va = System.Text.RegularExpressions.Regex.Match(a.Query, @"[?&]v=([^&#]+)").Groups[1].Value;
+                var vb = System.Text.RegularExpressions.Regex.Match(b.Query, @"[?&]v=([^&#]+)").Groups[1].Value;
+                return va.Length > 0 && string.Equals(va, vb, StringComparison.Ordinal);
+            }
+            return true;
+        }
+
+        // Trang kênh YouTube (không phải một video/short/playlist cụ thể): /@handle, /@handle/videos, /channel/ID, /c/tên, /user/tên
+        private static bool IsYouTubeLongChannelUrl(string url)
+        {
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (!uri.Host.EndsWith("youtube.com", StringComparison.OrdinalIgnoreCase)) return false;
+            var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return false;
+
+            int baseLen;
+            if (parts[0].StartsWith("@") || parts[0].StartsWith("%40")) baseLen = 1;
+            else if (parts.Length >= 2 && (parts[0].Equals("channel", StringComparison.OrdinalIgnoreCase)
+                                        || parts[0].Equals("c", StringComparison.OrdinalIgnoreCase)
+                                        || parts[0].Equals("user", StringComparison.OrdinalIgnoreCase))) baseLen = 2;
+            else return false;
+
+            if (parts.Length == baseLen) return true;
+            return parts.Length == baseLen + 1
+                && (parts[baseLen].Equals("videos", StringComparison.OrdinalIgnoreCase) || parts[baseLen].Equals("featured", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Luôn mở thẳng tab "Video" của kênh (trang chủ kênh không liệt kê đủ video)
+        private static string GetYouTubeChannelVideosUrl(string url)
+        {
+            var uri = new Uri(url.Trim());
+            var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            int baseLen = (parts[0].StartsWith("@") || parts[0].StartsWith("%40")) ? 1 : 2;
+            return uri.GetLeftPart(UriPartial.Authority) + "/" + string.Join("/", parts.Take(baseLen)) + "/videos";
         }
 
         private static bool IsTikTokProfileUrl(string url)
@@ -629,27 +667,41 @@ namespace MultiBrowser
 
                     TxtAutoStatus.Text = $"▶ [Vòng {loopCount} - Bước {i + 1}/{config.Items.Count}] Đang mở: {step.Title} ({step.PlatformBadge})...";
 
+                    // Kênh YouTube (video dài/master): mở tab "Video" của kênh để quét đủ danh sách
+                    bool isYtLongChannel = step.Platform == PlatformType.YouTubeLong && IsYouTubeLongChannelUrl(step.Url);
+                    string openUrl = isYtLongChannel ? GetYouTubeChannelVideosUrl(step.Url) : step.Url;
+
                     // 1. Điều hướng tất cả các ô active đến URL của bước này
                     foreach (var pane in activePanes)
                     {
-                        pane.Navigate(step.Url);
+                        pane.Navigate(openUrl);
                     }
 
                     // Chờ nạp trang ban đầu
                     await Task.Delay(3500, token);
 
-                    // TikTok kênh: lấy danh sách link video một lần rồi mở lần lượt từng link cho cả các ô,
-                    // để các ô luôn cùng một video và đi đúng tới video cuối (không dựa vào nút "next"/gợi ý của TikTok).
+                    // Kênh TikTok / YouTube: lấy danh sách link video một lần rồi mở lần lượt từng link cho cả các ô,
+                    // để các ô luôn cùng một video và đi đúng tới video cuối (không dựa vào nút "next"/gợi ý của nền tảng).
                     List<string>? directLinks = null;
                     bool isYtShortsChannel = step.Platform == PlatformType.YouTubeShorts && IsYouTubeShortsChannelUrl(step.Url);
-                    if ((step.Platform == PlatformType.TikTok && IsTikTokProfileUrl(step.Url)) || isYtShortsChannel)
+                    if ((step.Platform == PlatformType.TikTok && IsTikTokProfileUrl(step.Url)) || isYtShortsChannel || isYtLongChannel)
                     {
-                        TxtAutoStatus.Text = isYtShortsChannel ? "⏳ Đang quét danh sách Shorts của kênh YouTube..." : "⏳ Đang quét danh sách video của kênh TikTok...";
-                        var found = await activePanes[0].CollectTikTokProfileVideoLinksAsync(token, 180, isYtShortsChannel);
+                        var kind = isYtLongChannel ? ChannelLinkKind.YouTubeLong : isYtShortsChannel ? ChannelLinkKind.YouTubeShorts : ChannelLinkKind.TikTok;
+                        TxtAutoStatus.Text = isYtLongChannel ? "⏳ Đang quét danh sách video dài của kênh YouTube..."
+                            : isYtShortsChannel ? "⏳ Đang quét danh sách Shorts của kênh YouTube..." : "⏳ Đang quét danh sách video của kênh TikTok...";
+                        var found = await activePanes[0].CollectTikTokProfileVideoLinksAsync(token, isYtLongChannel ? 600 : 180, kind);
                         if (found.Count > 0)
                         {
                             if (step.Strategy == ScrollStrategy.BottomToTop) found.Reverse();
                             directLinks = found;
+                            if (isYtLongChannel) TxtAutoStatus.Text = $"✅ Tìm thấy {found.Count} video dài trên kênh. Bắt đầu xem lần lượt...";
+                        }
+                        else if (isYtLongChannel)
+                        {
+                            // Không dùng nút next/gợi ý của YouTube vì sẽ nhảy sang video của kênh khác
+                            TxtAutoStatus.Text = $"⚠️ Không tìm thấy video dài nào trên {step.Title}. Bỏ qua bước này.";
+                            await Task.Delay(5000, token);
+                            continue;
                         }
                     }
 
@@ -674,7 +726,8 @@ namespace MultiBrowser
 
                     // 3. Thực thi xem lần lượt N video trong bước này
                     int targetCount = Math.Max(1, step.VideoCount);
-                    if (directLinks != null) targetCount = Math.Min(targetCount, directLinks.Count);
+                    if (isYtLongChannel && directLinks != null) targetCount = directLinks.Count; // kênh YouTube: xem hết toàn bộ video dài của kênh
+                    else if (directLinks != null) targetCount = Math.Min(targetCount, directLinks.Count);
                     for (int vIdx = 1; vIdx <= targetCount; vIdx++)
                     {
                         token.ThrowIfCancellationRequested();
@@ -689,7 +742,7 @@ namespace MultiBrowser
                             if (vIdx == 1)
                             {
                                 TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Mở video 1/{targetCount} của kênh...";
-                                if (isYtShortsChannel)
+                                if (isYtShortsChannel || isYtLongChannel)
                                 {
                                     // Bấm vào video đầu ngay trong trang kênh (không mở thẳng link); ô nào không bấm được/không vào đúng video thì mở link dự phòng
                                     var clickRes = await Task.WhenAll(activePanes.Select(p => p.ClickGridVideoAsync(videoUrl)));
@@ -708,6 +761,26 @@ namespace MultiBrowser
                                     foreach (var pane in activePanes) pane.Navigate(videoUrl);
                                     await Task.Delay(3500, token);
                                 }
+                            }
+                            else if (isYtLongChannel)
+                            {
+                                // Video dài: mở thẳng link của video kế tiếp trong danh sách kênh (không lướt/next như Shorts)
+                                TxtAutoStatus.Text = $"⏭️ [Bước {i + 1}/{config.Items.Count}] Mở video dài {vIdx}/{targetCount} của kênh...";
+                                foreach (var pane in activePanes)
+                                {
+                                    await Task.Delay(Random.Shared.Next(100, 800), token);
+                                    pane.Navigate(videoUrl);
+                                }
+                                await Task.Delay(3500, token);
+
+                                // Ô nào chưa vào đúng video (trang nạp chậm/bị chặn) thì mở lại một lần
+                                bool retried = false;
+                                foreach (var pane in activePanes)
+                                {
+                                    if (!UrlMatchesVideo(pane.CurrentUrl, videoUrl)) { pane.Navigate(videoUrl); retried = true; }
+                                }
+                                if (retried) await Task.Delay(3500, token);
+                                _lastScrollReport = $"video {vIdx}: mở link trực tiếp, {activePanes.Count(p => UrlMatchesVideo(p.CurrentUrl, videoUrl))}/{activePanes.Count} ô đúng video";
                             }
                             else
                             {
@@ -785,7 +858,9 @@ namespace MultiBrowser
                         if (step.DurationMode == WatchDurationMode.FullVideoDuration)
                         {
                             double targetDuration = 0;
+                            double maxTimeSeen = 0;
                             int elapsedSec = 0;
+                            int adWaitSec = 0;
                             const int maxWaitSec = 86400; // Hỗ trợ cả video dài nhiều giờ
 
                             // Vòng lặp theo dõi tiến trình thực tế của video theo thời gian thực
@@ -798,15 +873,28 @@ namespace MultiBrowser
                                 }
                                 catch { }
 
+                                // Đang chiếu quảng cáo YouTube: chờ quảng cáo hết (tự bấm Bỏ qua nếu có), không tính vào thời lượng video chính
+                                if (state != null && state.Found && state.AdShowing && adWaitSec < 180)
+                                {
+                                    adWaitSec++;
+                                    TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đang chờ quảng cáo ({adWaitSec}s)... | Đã thả {_totalLikedCount} ❤️";
+                                    await Task.Delay(1000, token);
+                                    continue;
+                                }
+
                                 if (state != null && state.Found)
                                 {
                                     if (state.Duration > 0)
                                     {
                                         targetDuration = state.Duration;
                                     }
+                                    if (state.CurrentTime > maxTimeSeen) maxTimeSeen = state.CurrentTime;
+
+                                    // Video đang bị loop (giữ video): đã chạy gần hết rồi nhảy về đầu => coi là đã xem hết
+                                    bool loopedBack = targetDuration > 0 && maxTimeSeen >= targetDuration - 2 && state.CurrentTime < maxTimeSeen - 5;
 
                                     // Chỉ coi video đã phát xong khi đã xem ít nhất 3s VÀ (state.Ended hoặc currentTime đã tới gần cuối video)
-                                    bool isFinished = elapsedSec >= 3 && (state.Ended || (targetDuration > 0 && state.CurrentTime >= targetDuration - 0.5));
+                                    bool isFinished = elapsedSec >= 3 && (state.Ended || loopedBack || (targetDuration > 0 && state.CurrentTime >= targetDuration - 0.5));
                                     if (isFinished)
                                     {
                                         TxtAutoStatus.Text = $"▶ [Bước {i + 1}/{config.Items.Count}] Video {vIdx}/{targetCount} | Đã xem hết video ({FormatTime(targetDuration)}) | Đã thả {_totalLikedCount} ❤️";

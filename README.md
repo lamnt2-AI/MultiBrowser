@@ -22,6 +22,7 @@ Nhấn nút **`🎬 Xem Lần Lượt`** trên thanh công cụ góc trên để
 * Chỉ cần dán đường link (URL), hệ thống sẽ tự động nhận diện và gán cơ chế xử lý tương ứng:
   * **🔴 YouTube Shorts:** Tự động mở player Shorts, bấm nút điều hướng hoặc dispatch phím, thả tym chuẩn `aria-pressed`.
   * **📺 YouTube Video Dài (Master):** Tự động phát, bỏ qua nút quảng cáo (Skip Ad) nếu có, theo dõi xem hết video (`duration`).
+    * **Link kênh** (vd `https://www.youtube.com/@ten-kenh`): app tự mở tab *Video* của kênh, cuộn quét **toàn bộ** link video dài, rồi mở lần lượt từng video (mới nhất ➔ cũ, hoặc cũ nhất ➔ mới tuỳ chiến lược), xem hết và thả tym có kiểm chứng (`aria-pressed`). Không dùng nút "next"/video gợi ý nên không bị nhảy sang kênh khác. Với link kênh, "Số video" bị bỏ qua — luôn xem hết cả kênh.
   * **🎵 TikTok Video / Kênh:** Tự động mở player TikTok, dispatch phím lướt mượt mà, thả tym icon.
   * **📘 Facebook Reels / Video:** Tự động phát video Reels trên Facebook, cuộn và bấm Thích/Like.
   * **📷 Instagram Reels:** Tự động phát Reels Instagram và tương tác thả tym.
